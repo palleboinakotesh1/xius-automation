@@ -106,6 +106,7 @@
                     <table class="styled-table">
                         <thead>
                             <tr>
+                                <th style="width: 40px;"></th>
                                 <th>Project Name</th>
                                 <th>Manager</th>
                                 <th>Status</th>
@@ -114,6 +115,7 @@
                                 <th>Budget Consumed</th>
                                 <th>Schedule Dev.</th>
                                 <th>Delay</th>
+                                <th style="text-align: center; width: 100px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="dashboard-table-body">
@@ -498,6 +500,29 @@
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- Delete Project Confirmation Modal Overlay -->
+    <div id="delete-project-modal" class="modal-overlay hidden">
+        <div class="modal-card bg-glass card-shadow">
+            <div class="modal-header">
+                <h3>Confirm Deletion</h3>
+                <button type="button" class="close-btn" id="btn-close-delete-modal">&times;</button>
+            </div>
+            <div class="modal-body" style="font-size: 0.95rem; margin-bottom: 20px; line-height: 1.5; color: var(--text-color);">
+                <p>Are you sure you want to delete project <strong id="delete-project-name"></strong>?</p>
+                <p style="margin-top: 12px; color: var(--red); font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="alert-triangle" style="width: 16px; height: 16px; flex-shrink: 0;"></i>
+                    This will also remove all its associated achievements, risks, next steps, and decisions.
+                </p>
+            </div>
+            <div class="form-actions-bar" style="margin-top: 25px; padding-top: 15px;">
+                <button type="button" class="btn btn-secondary" id="btn-cancel-delete">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btn-confirm-delete" style="background-color: var(--red); border-color: var(--red); color: white; margin-left: auto;">
+                    Delete Project
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Create Project Modal Overlay -->

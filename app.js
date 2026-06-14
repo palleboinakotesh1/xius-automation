@@ -9,7 +9,8 @@ let state = {
     decisions: [],
     approvedProjects: {}, // Mapping: { "Project Name": true/false }
     selectedProjectName: null,
-    activeFormTab: 'metrics'
+    activeFormTab: 'metrics',
+    projectToDelete: null
 };
 
 // ==========================================================================
@@ -213,7 +214,7 @@ function populateDashboardTable() {
     const tbody = document.getElementById("dashboard-table-body");
     tbody.innerHTML = "";
 
-    state.projects.forEach(p => {
+    state.projects.forEach((p, idx) => {
         const planned = parseFloat(p["Planned %"]) || 0;
         const actual = parseFloat(p["Actual %"]) || 0;
         const budget = parseFloat(p["Budget"]) || 0;
@@ -228,8 +229,16 @@ function populateDashboardTable() {
         
         const status = getStatusLabel(delay, risk);
 
+        // Main Row
         const tr = document.createElement("tr");
+        tr.className = "main-row";
+        tr.setAttribute("data-project", p.Project);
         tr.innerHTML = `
+            <td>
+                <span class="expand-toggle" id="arrow-${idx}">
+                    <i data-lucide="chevron-right" style="width: 16px; height: 16px;"></i>
+                </span>
+            </td>
             <td><strong>${p.Project}</strong></td>
             <td>${p.Manager}</td>
             <td><span class="badge ${status.toLowerCase()}">${status}</span></td>
@@ -238,9 +247,238 @@ function populateDashboardTable() {
             <td>${(budgetConsumed * 100).toFixed(0)}%</td>
             <td class="${scheduleDev < 0 ? 'text-red' : 'text-green'}">${scheduleDev >= 0 ? '+' : ''}${scheduleDev.toFixed(1)}%</td>
             <td>${delay} days</td>
+            <td style="text-align: center;">
+                <button class="btn-delete-row" data-project="${p.Project}" title="Delete Project">
+                    <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
+                </button>
+            </td>
         `;
         tbody.appendChild(tr);
+
+        // Detail Row (hidden by default)
+        const detailTr = document.createElement("tr");
+        detailTr.className = "detail-row hidden";
+        detailTr.id = `detail-row-${idx}`;
+        detailTr.innerHTML = `
+            <td colspan="10" style="padding: 0;">
+                <div id="detail-content-${idx}"></div>
+            </td>
+        `;
+        tbody.appendChild(detailTr);
+
+        // Click handler for expansion (clicking anywhere on row except action button)
+        tr.addEventListener("click", (e) => {
+            if (e.target.closest('.btn-delete-row') || e.target.closest('button')) {
+                return; // Let delete action handle it
+            }
+            
+            const isHidden = detailTr.classList.contains("hidden");
+            
+            if (isHidden) {
+                // Populate content dynamically
+                document.getElementById(`detail-content-${idx}`).innerHTML = getProjectDetailRowHTML(p.Project);
+                detailTr.classList.remove("hidden");
+                document.getElementById(`arrow-${idx}`).classList.add("expanded");
+                // Re-render lucide icons inside details
+                lucide.createIcons();
+            } else {
+                detailTr.classList.add("hidden");
+                document.getElementById(`arrow-${idx}`).classList.remove("expanded");
+            }
+        });
+
+        // Click handler for deletion
+        tr.querySelector(".btn-delete-row").addEventListener("click", (e) => {
+            e.stopPropagation();
+            openDeleteProjectModal(p.Project);
+        });
     });
+}
+
+// ==========================================================================
+// EXPANDED ROW RENDERER & DELETE LOGIC HELPERS
+// ==========================================================================
+function getProjectDetailRowHTML(projectName) {
+    const achievements = state.achievements.filter(a => a.Project === projectName);
+    const risks = state.risks.filter(r => r.Project === projectName);
+    const nextSteps = state.nextsteps.filter(n => n.Project === projectName);
+    const decisions = state.decisions.filter(d => d.Project === projectName);
+
+    let html = `<div class="detail-panel"><div class="detail-grid">`;
+
+    // Column 1: Achievements & Decisions
+    html += `<div class="detail-col">`;
+    
+    // Achievements Card
+    html += `
+        <div class="detail-card">
+            <h4><i data-lucide="award" style="color: var(--green);"></i> Weekly Achievements</h4>
+    `;
+    if (achievements.length > 0) {
+        html += `<ul class="detail-achievements-list">`;
+        achievements.forEach(a => {
+            html += `<li>${escapeHtml(a.Achievement)}</li>`;
+        });
+        html += `</ul>`;
+    } else {
+        html += `<p class="detail-empty-text">No achievements recorded for this period.</p>`;
+    }
+    html += `</div>`;
+
+    // Decisions Card
+    html += `
+        <div class="detail-card">
+            <h4><i data-lucide="help-circle" style="color: var(--yellow);"></i> Decisions Required</h4>
+            <div class="detail-decisions-container">
+    `;
+    if (decisions.length > 0) {
+        decisions.forEach(d => {
+            const options = d.Options ? d.Options.split('/').map(o => o.trim()) : [];
+            html += `
+                <div class="detail-decision-item">
+                    <div class="detail-decision-title">${escapeHtml(d["Decision Required"])}</div>
+                    <div class="detail-decision-meta"><strong>Context:</strong> ${escapeHtml(d.Context)}</div>
+                    <div class="detail-decision-chips">
+            `;
+            options.forEach(opt => {
+                html += `<span class="detail-chip">${escapeHtml(opt)}</span>`;
+            });
+            if (d.Recommendation) {
+                html += `<span class="detail-chip recommendation">Rec: ${escapeHtml(d.Recommendation)}</span>`;
+            }
+            html += `
+                    </div>
+                </div>
+            `;
+        });
+    } else {
+        html += `<p class="detail-empty-text">No decisions or escalations requested.</p>`;
+    }
+    html += `</div></div></div>`; // Close cards and column
+
+    // Column 2: Active Risks
+    html += `
+        <div class="detail-col">
+            <div class="detail-card" style="height: 100%;">
+                <h4><i data-lucide="alert-triangle" style="color: var(--red);"></i> Active Risks</h4>
+                <div class="detail-table-wrapper">
+    `;
+    if (risks.length > 0) {
+        html += `
+            <table class="detail-table">
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th style="text-align:center;">Prob.</th>
+                        <th style="text-align:center;">Impact</th>
+                        <th>Mitigation</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        risks.forEach(r => {
+            const pClass = (r.Probability === 'High' || r.Probability === 'Critical') ? `risk-prob-${r.Probability.toLowerCase()}` : '';
+            const iClass = (r.Impact === 'High' || r.Impact === 'Critical') ? `risk-imp-${r.Impact.toLowerCase()}` : '';
+            html += `
+                <tr>
+                    <td><strong>${escapeHtml(r["Risk Description"])}</strong></td>
+                    <td class="${pClass} center-align">${escapeHtml(r.Probability)}</td>
+                    <td class="${iClass} center-align">${escapeHtml(r.Impact)}</td>
+                    <td>${escapeHtml(r.Mitigation)}</td>
+                </tr>
+            `;
+        });
+        html += `</tbody></table>`;
+    } else {
+        html += `<p class="detail-empty-text">No active risks recorded.</p>`;
+    }
+    html += `</div></div></div>`;
+
+    // Column 3: Next Steps
+    html += `
+        <div class="detail-col">
+            <div class="detail-card" style="height: 100%;">
+                <h4><i data-lucide="calendar" style="color: #3b82f6;"></i> Next Steps</h4>
+                <div class="detail-table-wrapper">
+    `;
+    if (nextSteps.length > 0) {
+        html += `
+            <table class="detail-table">
+                <thead>
+                    <tr>
+                        <th>Task</th>
+                        <th>Owner</th>
+                        <th style="text-align:center;">Deadline</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        nextSteps.forEach(n => {
+            let dateStr = n.Deadline || '';
+            if (dateStr) {
+                try {
+                    const d = new Date(dateStr);
+                    if (!isNaN(d.getTime())) {
+                        dateStr = d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+                    }
+                } catch(err) {}
+            }
+            html += `
+                <tr>
+                    <td><strong>${escapeHtml(n.Task)}</strong></td>
+                    <td>${escapeHtml(n.Owner)}</td>
+                    <td class="center-align">${escapeHtml(dateStr)}</td>
+                </tr>
+            `;
+        });
+        html += `</tbody></table>`;
+    } else {
+        html += `<p class="detail-empty-text">No next steps listed.</p>`;
+    }
+    html += `</div></div></div>`;
+
+    html += `</div></div>`;
+    return html;
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function openDeleteProjectModal(projectName) {
+    state.projectToDelete = projectName;
+    document.getElementById("delete-project-name").innerText = projectName;
+    document.getElementById("delete-project-modal").classList.remove("hidden");
+    lucide.createIcons();
+}
+
+function executeProjectDeletion(projectName) {
+    state.projects = state.projects.filter(p => p.Project !== projectName);
+    state.achievements = state.achievements.filter(a => a.Project !== projectName);
+    state.risks = state.risks.filter(r => r.Project !== projectName);
+    state.nextsteps = state.nextsteps.filter(n => n.Project !== projectName);
+    state.decisions = state.decisions.filter(d => d.Project !== projectName);
+    
+    delete state.approvedProjects[projectName];
+    
+    populateDashboardTable();
+    populateProjectDropdown();
+    updateDashboardCards();
+    
+    if (state.selectedProjectName === projectName) {
+        state.selectedProjectName = null;
+        document.getElementById("project-select").value = "";
+        document.getElementById("pm-update-form").classList.add("hidden");
+        document.getElementById("no-project-selected").classList.remove("hidden");
+    }
+    
+    showToast(`Project "${projectName}" and all its details deleted locally.`, "success");
 }
 
 function getStatusLabel(delay, risk) {
@@ -1261,6 +1499,31 @@ function setupModalListeners() {
         select.value = projName;
         state.selectedProjectName = projName;
         loadProjectIntoForm(projName);
+    });
+
+    // --- Setup Delete Confirmation Modal Listeners ---
+    const deleteModal = document.getElementById("delete-project-modal");
+    const closeDeleteBtn = document.getElementById("btn-close-delete-modal");
+    const cancelDeleteBtn = document.getElementById("btn-cancel-delete");
+    const confirmDeleteBtn = document.getElementById("btn-confirm-delete");
+
+    const closeDeleteModal = () => {
+        deleteModal.classList.add("hidden");
+        state.projectToDelete = null;
+    };
+
+    closeDeleteBtn.addEventListener("click", closeDeleteModal);
+    cancelDeleteBtn.addEventListener("click", closeDeleteModal);
+    deleteModal.addEventListener("click", (e) => {
+        if (e.target === deleteModal) closeDeleteModal();
+    });
+
+    confirmDeleteBtn.addEventListener("click", () => {
+        if (state.projectToDelete) {
+            const name = state.projectToDelete;
+            executeProjectDeletion(name);
+            closeDeleteModal();
+        }
     });
 }
 
