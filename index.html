@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PMO Weekly Automation Portal</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <img src="logo.png" alt="XIUS Logo" class="sidebar-logo">
+                <h2 class="sidebar-title">PMO Command Centre</h2>
+            </div>
+            <nav class="sidebar-menu">
+                <button class="menu-item active" data-tab="dashboard">
+                    <i data-lucide="bar-chart-3" class="icon"></i> Dashboard
+                </button>
+                <button class="menu-item" data-tab="entry-form">
+                    <i data-lucide="file-edit" class="icon"></i> PM Status Entry
+                </button>
+                <button class="menu-item" data-tab="review-board">
+                    <i data-lucide="check-square" class="icon"></i> PMO Approval Board
+                </button>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="version-tag">Version 1.2 Prototype</div>
+                <div class="status-indicator online">System Live</div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Top Navbar -->
+            <header class="top-bar">
+                <div class="bar-title">
+                    <h1 id="page-title">Portfolio Dashboard</h1>
+                    <p id="page-subtitle">Real-time status tracking and weekly executive summaries</p>
+                </div>
+                <div class="user-profile">
+                    <div class="avatar"><i data-lucide="user"></i></div>
+                    <span class="username">Project Lead</span>
+                </div>
+            </header>
+
+            <!-- Notification Toast -->
+            <div id="toast" class="toast hidden"></div>
+
+            <!-- Tab: Dashboard View -->
+            <section id="tab-dashboard" class="tab-content active">
+                <div class="metrics-grid">
+                    <div class="metric-card bg-glass">
+                        <div class="metric-header">
+                            <span>Active Projects</span>
+                            <i data-lucide="folder" class="metric-icon"></i>
+                        </div>
+                        <div class="metric-value" id="stat-total-projects">0</div>
+                        <div class="metric-footer text-muted">Across all business units</div>
+                    </div>
+                    <div class="metric-card bg-glass border-green">
+                        <div class="metric-header">
+                            <span>On Track</span>
+                            <i data-lucide="check-circle" class="metric-icon text-green"></i>
+                        </div>
+                        <div class="metric-value text-green" id="stat-green-projects">0</div>
+                        <div class="metric-footer text-muted">Healthy and within thresholds</div>
+                    </div>
+                    <div class="metric-card bg-glass border-yellow">
+                        <div class="metric-header">
+                            <span>Needs Attention</span>
+                            <i data-lucide="alert-circle" class="metric-icon text-yellow"></i>
+                        </div>
+                        <div class="metric-value text-yellow" id="stat-yellow-projects">0</div>
+                        <div class="metric-footer text-muted">Schedule or risk slips</div>
+                    </div>
+                    <div class="metric-card bg-glass border-red">
+                        <div class="metric-header">
+                            <span>Critical</span>
+                            <i data-lucide="alert-triangle" class="metric-icon text-red"></i>
+                        </div>
+                        <div class="metric-value text-red" id="stat-red-projects">0</div>
+                        <div class="metric-footer text-muted">Immediate action required</div>
+                    </div>
+                </div>
+
+                <!-- Projects Table -->
+                <div class="table-container bg-glass card-shadow">
+                    <div class="container-header">
+                        <h2>Current Portfolio Health</h2>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn btn-secondary btn-sm" id="btn-open-add-project">
+                                <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Add Project
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="fetchData()">
+                                <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Sync Data
+                            </button>
+                        </div>
+                    </div>
+                    <table class="styled-table">
+                        <thead>
+                            <tr>
+                                <th>Project Name</th>
+                                <th>Manager</th>
+                                <th>Status</th>
+                                <th>SPI</th>
+                                <th>CPI</th>
+                                <th>Budget Consumed</th>
+                                <th>Schedule Dev.</th>
+                                <th>Delay</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dashboard-table-body">
+                            <!-- Dynamic Row Loading -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Tab: PM Status Entry Form -->
+            <section id="tab-entry-form" class="tab-content">
+                <div class="form-container bg-glass card-shadow">
+                    <div class="form-header">
+                        <h2>Weekly Status Submission</h2>
+                        <div class="selector-wrapper">
+                            <label for="project-select">Select Project:</label>
+                            <select id="project-select" class="form-select">
+                                <option value="" disabled selected>-- Choose a Project --</option>
+                                <!-- Dynamically loaded from projects -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="no-project-selected" class="empty-state">
+                        <i data-lucide="folder" class="empty-icon"></i>
+                        <h3>No Project Selected</h3>
+                        <p>Please select a project from the dropdown above to load and edit its weekly status data.</p>
+                    </div>
+
+                    <!-- Form Content (hidden by default until project selected) -->
+                    <form id="pm-update-form" class="hidden" novalidate>
+                        <!-- Form Sub-Navigation Tabs -->
+                        <div class="form-tabs">
+                            <button type="button" class="form-tab-btn active" data-form-tab="metrics">1. Key Metrics</button>
+                            <button type="button" class="form-tab-btn" data-form-tab="achievements">2. Achievements</button>
+                            <button type="button" class="form-tab-btn" data-form-tab="risks">3. Active Risks</button>
+                            <button type="button" class="form-tab-btn" data-form-tab="nextsteps">4. Next Steps</button>
+                            <button type="button" class="form-tab-btn" data-form-tab="decisions">5. Key Decisions</button>
+                        </div>
+
+                        <!-- Form Tab 1: Key Metrics -->
+                        <div class="form-tab-content active" id="form-tab-metrics">
+                            <div class="grid-2-cols">
+                                <div>
+                                    <div class="form-group">
+                                        <label for="input-manager">Project Manager</label>
+                                        <input type="text" id="input-manager" class="form-input" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="input-planned">Planned Progress %</label>
+                                        <input type="number" id="input-planned" class="form-input" min="0" max="100" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="input-actual">Actual Progress %</label>
+                                        <input type="number" id="input-actual" class="form-input" min="0" max="100" required>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="form-group">
+                                        <label for="input-budget">Total Budget ($)</label>
+                                        <input type="number" id="input-budget" class="form-input" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="input-actualcost">Actual Cost ($)</label>
+                                        <input type="number" id="input-actualcost" class="form-input" required>
+                                    </div>
+                                    <div class="grid-2-cols" style="gap: 15px; margin: 0; padding: 0;">
+                                        <div class="form-group">
+                                            <label for="input-delay">Delay Days</label>
+                                            <input type="number" id="input-delay" class="form-input" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="input-riskscore">Risk Score (1-5)</label>
+                                            <input type="number" id="input-riskscore" class="form-input" min="1" max="5" required>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Live Calculated KPIs Preview -->
+                            <div class="kpi-preview-bar">
+                                <h3>Real-time KPI Engine Preview</h3>
+                                <div class="kpi-badges">
+                                    <div class="kpi-badge">
+                                        <span class="label">Calculated SPI</span>
+                                        <span class="value" id="preview-spi">-</span>
+                                    </div>
+                                    <div class="kpi-badge">
+                                        <span class="label">Calculated CPI</span>
+                                        <span class="value" id="preview-cpi">-</span>
+                                    </div>
+                                    <div class="kpi-badge">
+                                        <span class="label">Progress %</span>
+                                        <span class="value" id="preview-progress">-</span>
+                                    </div>
+                                    <div class="kpi-badge">
+                                        <span class="label">Budget Consumed</span>
+                                        <span class="value" id="preview-budget">-</span>
+                                    </div>
+                                    <div class="kpi-badge">
+                                        <span class="label">Project Status</span>
+                                        <span class="value" id="preview-status">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Form Tab 2: Achievements -->
+                        <div class="form-tab-content" id="form-tab-achievements">
+                            <p class="section-desc">Record achievements completed during this reporting week.</p>
+                            <div class="list-editor" id="achievements-list">
+                                <!-- Dynamic bullet textboxes load here -->
+                            </div>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btn-add-achievement">
+                                <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Add Achievement
+                            </button>
+                        </div>
+
+                        <!-- Form Tab 3: Active Risks -->
+                        <div class="form-tab-content" id="form-tab-risks">
+                            <p class="section-desc">List active risks for the project. Shading and highlights apply automatically to High & Critical risks.</p>
+                            <div class="table-scroll">
+                                <table class="edit-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 40%;">Risk Description</th>
+                                            <th style="width: 15%;">Probability</th>
+                                            <th style="width: 15%;">Impact</th>
+                                            <th style="width: 25%;">Mitigation Plan</th>
+                                            <th style="width: 5%;"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="risks-tbody">
+                                        <!-- Rows added dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btn-add-risk" style="margin-top: 10px;">
+                                <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Add Risk
+                            </button>
+                        </div>
+
+                        <!-- Form Tab 4: Next Steps -->
+                        <div class="form-tab-content" id="form-tab-nextsteps">
+                            <p class="section-desc">Add the top critical tasks planned for the next 7 days.</p>
+                            <div class="table-scroll">
+                                <table class="edit-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 50%;">Task Description</th>
+                                            <th style="width: 20%;">Owner</th>
+                                            <th style="width: 25%;">Deadline</th>
+                                            <th style="width: 5%;"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="nextsteps-tbody">
+                                        <!-- Rows added dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btn-add-nextstep" style="margin-top: 10px;">
+                                <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Add Task
+                            </button>
+                        </div>
+
+                        <!-- Form Tab 5: Decisions Required -->
+                        <div class="form-tab-content" id="form-tab-decisions">
+                            <p class="section-desc">Document escalations or decisions required by management/PMO.</p>
+                            <div class="table-scroll">
+                                <table class="edit-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 25%;">Decision Required</th>
+                                            <th style="width: 25%;">Context Details</th>
+                                            <th style="width: 20%;">Options (Separate by /)</th>
+                                            <th style="width: 25%;">PM Recommendation</th>
+                                            <th style="width: 5%;"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="decisions-tbody">
+                                        <!-- Rows added dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btn-add-decision" style="margin-top: 10px;">
+                                <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Add Decision Request
+                            </button>
+                        </div>
+
+                        <div class="form-actions-bar">
+                            <button type="button" class="btn btn-secondary" id="btn-form-prev" disabled>
+                                <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Back
+                            </button>
+                            <button type="button" class="btn btn-secondary" id="btn-form-next" style="margin-left: auto;">
+                                Next <i data-lucide="chevron-right" style="width: 16px; height: 16px;"></i>
+                            </button>
+                            <button type="submit" class="btn btn-primary" id="btn-form-save" style="margin-left: auto; display: none;">
+                                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save Project Local Data
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Tab: PMO Review & Approval Board -->
+            <section id="tab-review-board" class="tab-content">
+
+                <!-- ===== STEP PROGRESS INDICATOR ===== -->
+                <div class="workflow-steps bg-glass card-shadow">
+                    <div class="step-item active" data-workflow-step="1">
+                        <div class="step-number">1</div>
+                        <div class="step-label">Review & Approve</div>
+                    </div>
+                    <div class="step-connector"></div>
+                    <div class="step-item" data-workflow-step="2">
+                        <div class="step-number">2</div>
+                        <div class="step-label">Preview & Compile</div>
+                    </div>
+                    <div class="step-connector"></div>
+                    <div class="step-item" data-workflow-step="3">
+                        <div class="step-number">3</div>
+                        <div class="step-label">Download Report</div>
+                    </div>
+                </div>
+
+                <!-- ===== STEP 1: REVIEW & APPROVE ===== -->
+                <div class="workflow-panel active" id="workflow-step-1">
+                    <div class="review-status-card bg-glass card-shadow">
+                        <!-- Summary Progress Bar -->
+                        <div class="approval-summary-bar">
+                            <div class="summary-left">
+                                <h2><i data-lucide="clipboard-check" style="width:20px;height:20px;"></i> Approval Checklist</h2>
+                                <p class="section-desc">Review each project's submitted data. Approve to include in the compiled report.</p>
+                            </div>
+                            <div class="summary-right">
+                                <div class="approval-counter">
+                                    <span class="counter-value" id="approved-count">0</span>
+                                    <span class="counter-separator">/</span>
+                                    <span class="counter-total" id="total-count">0</span>
+                                    <span class="counter-label">Approved</span>
+                                </div>
+                                <div class="approval-progress-track">
+                                    <div class="approval-progress-fill" id="approval-progress-bar" style="width: 0%;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Select All Toggle -->
+                        <div class="checklist-toolbar">
+                            <button class="btn btn-secondary btn-sm" id="btn-select-all">
+                                <i data-lucide="check-square" style="width:14px;height:14px;"></i> Approve All
+                            </button>
+                            <button class="btn btn-secondary btn-sm" id="btn-deselect-all">
+                                <i data-lucide="square" style="width:14px;height:14px;"></i> Clear All
+                            </button>
+                        </div>
+                        
+                        <div class="checklist-container" id="pmo-checklist">
+                            <!-- Checklist items load here dynamically -->
+                        </div>
+
+                        <!-- Step 1 Action -->
+                        <div class="step-actions">
+                            <div></div>
+                            <button class="btn btn-primary" id="btn-goto-step2" disabled>
+                                Continue to Preview <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== STEP 2: PREVIEW & COMPILE ===== -->
+                <div class="workflow-panel" id="workflow-step-2">
+                    <div class="grid-review">
+                        <!-- Left: Approved Summary List -->
+                        <div class="review-status-card bg-glass card-shadow">
+                            <h2><i data-lucide="list-checks" style="width:20px;height:20px;"></i> Approved Projects</h2>
+                            <p class="section-desc">These projects will be included in the executive report.</p>
+                            <div class="approved-list" id="approved-projects-list">
+                                <!-- Populated dynamically -->
+                            </div>
+
+                            <div class="compile-actions">
+                                <button class="btn btn-primary btn-lg btn-block" id="btn-compile-report">
+                                    Generate Report
+                                </button>
+                                <p class="text-center text-muted" style="font-size: 0.82rem; margin-top: 10px;">
+                                    Syncs all approved data to Excel and generates the Word document.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Right: Live Document Preview -->
+                        <div class="review-details bg-glass card-shadow">
+                            <h2><i data-lucide="file-text" style="width:20px;height:20px;"></i> Report Preview</h2>
+                            <p class="section-desc">Live preview of report content for all approved projects.</p>
+                            
+                            <div class="document-preview-box">
+                                <div class="doc-header">
+                                    <h3>PMO WEEKLY EXECUTIVE REPORT</h3>
+                                    <div class="doc-meta" id="preview-date-label">Preview</div>
+                                </div>
+                                <div class="doc-body" id="doc-preview-content">
+                                    <div class="empty-state">
+                                        <i data-lucide="file-text" class="empty-icon" style="margin-bottom: 10px;"></i>
+                                        <p>Report preview will populate based on approved projects.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2 Navigation -->
+                    <div class="step-actions" style="margin-top: 0;">
+                        <button class="btn btn-secondary" id="btn-back-step1">
+                            <i data-lucide="arrow-left" style="width:16px;height:16px;"></i> Back to Review
+                        </button>
+                        <div></div>
+                    </div>
+                </div>
+
+                <!-- ===== STEP 3: DOWNLOAD ===== -->
+                <div class="workflow-panel" id="workflow-step-3">
+                    <div class="download-panel bg-glass card-shadow">
+                        <div class="download-hero">
+                            <div class="download-icon-circle">
+                                <i data-lucide="check-circle" style="width:48px;height:48px;color:#2e7d32;"></i>
+                            </div>
+                            <h2>Report Generated Successfully</h2>
+                            <p class="section-desc" id="download-summary-text">Your PMO Executive Report has been compiled and is ready for download.</p>
+                        </div>
+
+                        <div class="download-actions">
+                            <a class="btn btn-primary btn-lg" id="btn-download-docx" href="/api/download/docx" download="PMO_Executive_Report.docx">
+                                <i data-lucide="download" style="width:18px;height:18px;"></i> Download Word Report (.docx)
+                            </a>
+                            <a class="btn btn-secondary btn-lg" id="btn-download-excel" href="/api/download/excel" download="PMO_Weekly_Report_Data.xlsx">
+                                <i data-lucide="table" style="width:18px;height:18px;"></i> Download Excel Data (.xlsx)
+                            </a>
+                        </div>
+
+                        <div class="report-meta-info" id="report-meta-info">
+                            <!-- Populated after generation -->
+                        </div>
+
+                        <!-- Step 3 Navigation -->
+                        <div class="step-actions">
+                            <button class="btn btn-secondary" id="btn-back-step2-from-3">
+                                <i data-lucide="arrow-left" style="width:16px;height:16px;"></i> Back to Preview
+                            </button>
+                            <button class="btn btn-secondary" id="btn-new-cycle">
+                                <i data-lucide="refresh-cw" style="width:16px;height:16px;"></i> Start New Review Cycle
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- Compile Confirmation Modal -->
+            <div id="compile-confirm-modal" class="modal-overlay hidden">
+                <div class="modal-card bg-glass card-shadow">
+                    <div class="modal-header">
+                        <h3><i data-lucide="alert-circle" style="width:20px;height:20px;color:#f57f17;"></i> Confirm Report Compilation</h3>
+                        <button type="button" class="close-btn" id="btn-close-compile-modal">&times;</button>
+                    </div>
+                    <div class="compile-confirm-body">
+                        <p>You are about to compile the weekly executive report with the following projects:</p>
+                        <ul id="compile-project-list" class="compile-project-list">
+                            <!-- Populated dynamically -->
+                        </ul>
+                        <p class="text-muted" style="font-size:0.82rem; margin-top:12px;">
+                            This will overwrite the existing Excel data and regenerate the Word document.
+                        </p>
+                    </div>
+                    <div class="form-actions-bar" style="margin-top: 20px; padding-top: 15px;">
+                        <button type="button" class="btn btn-secondary" id="btn-cancel-compile">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="btn-confirm-compile" style="margin-left: auto;">
+                            <i data-lucide="zap" style="width:16px;height:16px;"></i> Yes, Compile Report
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Create Project Modal Overlay -->
+    <div id="add-project-modal" class="modal-overlay hidden">
+        <div class="modal-card bg-glass card-shadow">
+            <div class="modal-header">
+                <h3>Add New Project</h3>
+                <button type="button" class="close-btn" id="btn-close-modal">&times;</button>
+            </div>
+            <form id="add-project-form">
+                <div class="form-group">
+                    <label for="modal-input-name">Project Name</label>
+                    <input type="text" id="modal-input-name" class="form-input" placeholder="E.g. Customer Portal" required>
+                </div>
+                <div class="form-group">
+                    <label for="modal-input-manager">Project Manager</label>
+                    <input type="text" id="modal-input-manager" class="form-input" placeholder="E.g. Elena" required>
+                </div>
+                <div class="grid-2-cols" style="margin: 0; padding: 0; gap: 15px;">
+                    <div class="form-group">
+                        <label for="modal-input-budget">Initial Budget ($)</label>
+                        <input type="number" id="modal-input-budget" class="form-input" value="100000" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="modal-input-planned">Planned Progress %</label>
+                        <input type="number" id="modal-input-planned" class="form-input" value="10" min="0" max="100" required>
+                    </div>
+                </div>
+                <div class="form-actions-bar" style="margin-top: 25px; padding-top: 15px;">
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Project</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
