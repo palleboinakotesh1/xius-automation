@@ -1602,4 +1602,286 @@ svg {
     color: #b71c1c;
 }
 
+/* ==========================================================================
+   PROJECT PLAN MODULE STYLES
+   ========================================================================== */
+#wbs-table {
+    min-width: 1300px;
+    table-layout: auto;
+}
+
+.dropzone {
+    border: 2px dashed #cbd5e1;
+    border-radius: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    background-color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 20px 0;
+}
+
+.dropzone:hover, .dropzone.dragover {
+    border-color: #3b82f6;
+    background-color: rgba(59, 130, 246, 0.05);
+}
+
+.upload-icon {
+    width: 48px;
+    height: 48px;
+    color: var(--secondary-color);
+    opacity: 0.7;
+    transition: transform 0.2s ease;
+}
+
+.dropzone:hover .upload-icon {
+    transform: translateY(-4px);
+    color: #3b82f6;
+}
+
+.upload-file-details {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background-color: #f8fafc;
+    border: 1px solid var(--border-color);
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+#upload-file-name {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+/* WBS Indentation Spacing */
+.wbs-indent-1 { padding-left: 8px !important; }
+.wbs-indent-2 { padding-left: 20px !important; }
+.wbs-indent-3 { padding-left: 36px !important; font-weight: 500; }
+.wbs-indent-4 { padding-left: 52px !important; color: #475569; }
+.wbs-indent-5 { padding-left: 68px !important; font-style: italic; color: #64748b; }
+.wbs-indent-6 { padding-left: 84px !important; font-style: italic; color: #64748b; }
+
+.wbs-parent-row {
+    font-weight: 700;
+    color: var(--primary-color);
+    background-color: rgba(27, 54, 93, 0.02);
+}
+
+.wbs-milestone-row {
+    color: #c62828;
+    background-color: rgba(198, 40, 40, 0.01);
+}
+
+/* Visual Progress Bar inside Table Cells */
+.cell-progress-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.cell-progress-track {
+    flex-grow: 1;
+    height: 6px;
+    background-color: #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+    min-width: 60px;
+}
+
+.cell-progress-fill {
+    height: 100%;
+    background-color: var(--green);
+    border-radius: 4px;
+}
+
+.cell-progress-fill.in-progress {
+    background-color: #3b82f6;
+}
+
+.cell-progress-fill.not-started {
+    background-color: #cbd5e1;
+}
+
+/* Resources Chip Container */
+.resource-chips-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.resource-chip {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background-color: rgba(59, 130, 246, 0.1);
+    color: #2563eb;
+    border: 1px solid rgba(59, 130, 246, 0.15);
+}
+
+.resource-chip.ft {
+    background-color: rgba(124, 58, 237, 0.1);
+    color: #7c3aed;
+    border-color: rgba(124, 58, 237, 0.15);
+}
+
+/* Inline Table Inputs for WBS Edit Mode */
+.wbs-cell-input {
+    width: 100%;
+    padding: 6px 10px;
+    border-radius: var(--border-radius-sm);
+    border: 1px solid #cbd5e1;
+    font-family: inherit;
+    font-size: 0.85rem;
+    color: var(--text-color);
+    outline: none;
+    transition: all 0.2s ease;
+    background-color: #ffffff;
+}
+
+.wbs-cell-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    background-color: #ffffff;
+}
+
+.btn-secondary.active {
+    background-color: #cbd5e1;
+    border-color: #94a3b8;
+    color: #0f203d;
+}
+
+/* User Profile Dropdown Styles */
+.user-profile {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background-color: rgba(255, 255, 255, 0.4);
+    border: 1px solid var(--border-color);
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.user-profile:hover {
+    background-color: rgba(255, 255, 255, 0.85);
+    border-color: #cbd5e1;
+}
+
+.profile-info {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+}
+
+.profile-info .username {
+    font-size: 0.85rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--primary-color);
+}
+
+.profile-info .userrole {
+    font-size: 0.7rem;
+    color: var(--secondary-color);
+    margin-top: 1px;
+}
+
+.profile-dropdown-menu {
+    position: absolute;
+    top: 110%;
+    right: 0;
+    width: 210px;
+    background-color: rgba(255, 255, 255, 0.98);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    box-shadow: var(--shadow-lg);
+    backdrop-filter: blur(10px);
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    padding: 6px 0;
+    animation: fadeInDropdown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInDropdown {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.profile-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background-color 0.2s ease;
+}
+
+.profile-dropdown-item:hover {
+    background-color: rgba(59, 130, 246, 0.08);
+}
+
+.profile-dropdown-item.active {
+    background-color: rgba(59, 130, 246, 0.04);
+    font-weight: 600;
+}
+
+.profile-dropdown-item .avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 0.75rem;
+    border: 1px solid var(--border-color);
+}
+
+/* Compile Status Banner */
+.status-banner {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 16px 20px;
+    border-radius: var(--border-radius);
+    margin-bottom: 25px;
+    animation: slideInDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.status-banner.locked {
+    background-color: rgba(46, 125, 50, 0.04);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--green);
+}
+
+.status-banner-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 2px;
+}
+
+.status-banner-desc {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+
+
+
 

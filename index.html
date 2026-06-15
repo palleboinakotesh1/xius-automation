@@ -29,6 +29,9 @@
                 <button class="menu-item" data-tab="review-board">
                     <i data-lucide="check-square" class="icon"></i> PMO Approval Board
                 </button>
+                <button class="menu-item" data-tab="project-plan">
+                    <i data-lucide="milestone" class="icon"></i> Project Plan
+                </button>
             </nav>
             <div class="sidebar-footer">
                 <div class="version-tag">Version 1.2 Prototype</div>
@@ -44,9 +47,14 @@
                     <h1 id="page-title">Portfolio Dashboard</h1>
                     <p id="page-subtitle">Real-time status tracking and weekly executive summaries</p>
                 </div>
-                <div class="user-profile">
-                    <div class="avatar"><i data-lucide="user"></i></div>
-                    <span class="username">Project Lead</span>
+                <div class="user-profile dropdown" id="profile-dropdown-container">
+                    <div class="avatar" id="active-profile-avatar">-</div>
+                    <div class="profile-info">
+                        <span class="username" id="active-profile-name">-</span>
+                        <span class="userrole" id="active-profile-role">-</span>
+                    </div>
+                    <i data-lucide="chevron-down" style="width: 14px; height: 14px; margin-left: 4px;"></i>
+                    <div class="profile-dropdown-menu hidden" id="profile-dropdown-menu"></div>
                 </div>
             </header>
 
@@ -341,8 +349,8 @@
                     </div>
                 </div>
 
-                <!-- ===== STEP 1: REVIEW & APPROVE ===== -->
                 <div class="workflow-panel active" id="workflow-step-1">
+                    <div id="approval-status-banner-wrapper"></div>
                     <div class="review-status-card bg-glass card-shadow">
                         <!-- Summary Progress Bar -->
                         <div class="approval-summary-bar">
@@ -475,6 +483,117 @@
 
             </section>
 
+            <!-- Tab: Project Plan Ingestion & Timeline -->
+            <section id="tab-project-plan" class="tab-content">
+                <!-- Dropzone Upload Panel -->
+                <div class="form-container bg-glass card-shadow" id="plan-upload-section">
+                    <h2>Ingest Project Plan</h2>
+                    <p class="section-desc">Upload the Microsoft Project export PDF to automatically parse project schedules, task hierarchies, and resource allocations.</p>
+                    
+                    <div id="dropzone" class="dropzone">
+                        <i data-lucide="upload-cloud" class="upload-icon"></i>
+                        <p>Drag and drop your project plan PDF here or <strong>browse files</strong></p>
+                        <input type="file" id="plan-file-input" accept="application/pdf" style="display: none;">
+                    </div>
+                    
+                    <div id="upload-status" class="hidden">
+                        <div class="upload-file-details">
+                            <i data-lucide="file-text" style="width: 20px; height: 20px;"></i>
+                            <span id="upload-file-name">filename.pdf</span>
+                            <span id="upload-file-size" class="text-muted">(0.0 MB)</span>
+                        </div>
+                        <div class="progress-track" style="margin: 15px 0;">
+                            <div class="progress-fill" id="upload-progress-bar" style="width: 0%;"></div>
+                        </div>
+                        <div class="form-actions-bar" style="border: none; padding: 0; margin-top: 15px;">
+                            <button class="btn btn-secondary btn-sm" id="btn-cancel-upload">Cancel</button>
+                            <button class="btn btn-primary btn-sm" id="btn-parse-plan" style="margin-left: auto;">
+                                <i data-lucide="cpu" style="width: 14px; height: 14px;"></i> Parse & Process Schedule
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Plan Data Presentation View (hidden by default) -->
+                <div class="hidden" id="plan-data-view">
+                    <!-- High-level Summary Panel -->
+                    <div class="metrics-grid">
+                        <div class="metric-card bg-glass">
+                            <div class="metric-header">
+                                <span>Project Summary</span>
+                                <i data-lucide="milestone" class="metric-icon"></i>
+                            </div>
+                            <div class="metric-value" id="plan-stat-name" style="font-size: 1.15rem; line-height: 1.4; margin-top: 5px; height: 42px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700;">-</div>
+                            <div class="metric-footer text-muted" id="plan-stat-dates">Timeline: -</div>
+                        </div>
+                        <div class="metric-card bg-glass">
+                            <div class="metric-header">
+                                <span>Overall Progress</span>
+                                <i data-lucide="activity" class="metric-icon text-green"></i>
+                            </div>
+                            <div class="metric-value text-green" id="plan-stat-progress">0%</div>
+                            <div class="metric-footer text-muted">Aggregated complete %</div>
+                        </div>
+                        <div class="metric-card bg-glass">
+                            <div class="metric-header">
+                                <span>Tasks Mapped</span>
+                                <i data-lucide="list-todo" class="metric-icon text-yellow"></i>
+                            </div>
+                            <div class="metric-value text-yellow" id="plan-stat-tasks">0</div>
+                            <div class="metric-footer text-muted">Stitched across pages</div>
+                        </div>
+                        <div class="metric-card bg-glass">
+                            <div class="metric-header">
+                                <span>Milestones</span>
+                                <i data-lucide="flag" class="metric-icon text-red"></i>
+                            </div>
+                            <div class="metric-value text-red" id="plan-stat-milestones">0</div>
+                            <div class="metric-footer text-muted">Fixed checkpoints (0d)</div>
+                        </div>
+                    </div>
+
+                    <!-- Hierarchy Table -->
+                    <div class="table-container bg-glass card-shadow">
+                        <div class="container-header">
+                            <h2>Work Breakdown Structure (WBS)</h2>
+                            <div style="display: flex; gap: 10px;">
+                                <button class="btn btn-secondary btn-sm" id="btn-toggle-wbs-edit">
+                                    <i data-lucide="edit-3" style="width: 14px; height: 14px;"></i> Edit Mode
+                                </button>
+                                <button class="btn btn-primary btn-sm hidden" id="btn-save-plan-changes">
+                                    <i data-lucide="save" style="width: 14px; height: 14px;"></i> Save Changes
+                                </button>
+                                <button class="btn btn-secondary btn-sm" id="btn-reupload-plan">
+                                    <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Upload Different Plan
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="table-scroll">
+                            <table class="styled-table" id="wbs-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 60px;">ID</th>
+                                        <th>Task Name</th>
+                                        <th style="width: 100px;">Duration</th>
+                                        <th>Baseline Start</th>
+                                        <th>Baseline Finish</th>
+                                        <th>Start Date</th>
+                                        <th>Finish Date</th>
+                                        <th style="width: 120px; text-align: center;">% Complete</th>
+                                        <th>Resource Names</th>
+                                        <th style="width: 100px;">Predecessors</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="wbs-table-body">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Compile Confirmation Modal -->
             <div id="compile-confirm-modal" class="modal-overlay hidden">
                 <div class="modal-card bg-glass card-shadow">
@@ -487,6 +606,12 @@
                         <ul id="compile-project-list" class="compile-project-list">
                             <!-- Populated dynamically -->
                         </ul>
+                        
+                        <div style="margin-top: 15px; margin-bottom: 15px; padding: 12px; background-color: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                            <span style="font-size: 0.8rem; color: var(--secondary-color); display: block; margin-bottom: 2px;">Compiling signature:</span>
+                            <span style="font-weight: 600; font-size: 0.9rem; color: var(--primary-color);" id="confirm-modal-compiler-name">-</span>
+                        </div>
+
                         <p class="text-muted" style="font-size:0.82rem; margin-top:12px;">
                             This will overwrite the existing Excel data and regenerate the Word document.
                         </p>

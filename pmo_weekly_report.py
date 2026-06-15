@@ -146,7 +146,7 @@ def load_and_process_data(excel_path):
 # REPORT GENERATION
 # ---------------------------------------------------------------------------
 
-def generate_word_report(df_projects, df_achievements, df_risks, df_nextsteps, df_decisions, output_path):
+def generate_word_report(df_projects, df_achievements, df_risks, df_nextsteps, df_decisions, output_path, approved_by="Project Lead"):
     """Generates the PMO Executive Report Word Document."""
     doc = Document()
     
@@ -196,7 +196,7 @@ def generate_word_report(df_projects, df_achievements, df_risks, df_nextsteps, d
     p_sub = doc.add_paragraph()
     p_sub.paragraph_format.space_before = Pt(0)
     p_sub.paragraph_format.space_after = Pt(20)
-    run_sub = p_sub.add_run(f"Generated on {datetime.now().strftime('%d-%b-%Y')} | Portfolio Status & Escalation Summary")
+    run_sub = p_sub.add_run(f"Generated on {datetime.now().strftime('%d-%b-%Y')} | Approved By: {approved_by} | Portfolio Status & Escalation Summary")
     run_sub.font.name = 'Arial'
     run_sub.font.size = Pt(10)
     run_sub.font.italic = True
@@ -454,10 +454,10 @@ def generate_word_report(df_projects, df_achievements, df_risks, df_nextsteps, d
 # MAIN EXECUTION ENTRYPOINT
 # ---------------------------------------------------------------------------
 
-def run_report_generation(excel_path="PMO_Weekly_Report_Data.xlsx", output_path="PMO_Executive_Report.docx"):
+def run_report_generation(excel_path="PMO_Weekly_Report_Data.xlsx", output_path="PMO_Executive_Report.docx", approved_by="Project Lead"):
     """Exposes report generation as a function that can be imported and run dynamically."""
     p_df, a_df, r_df, n_df, d_df = load_and_process_data(excel_path)
-    generate_word_report(p_df, a_df, r_df, n_df, d_df, output_path)
+    generate_word_report(p_df, a_df, r_df, n_df, d_df, output_path, approved_by=approved_by)
 
 if __name__ == "__main__":
     try:

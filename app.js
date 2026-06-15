@@ -10,18 +10,116 @@ let state = {
     approvedProjects: {}, // Mapping: { "Project Name": true/false }
     selectedProjectName: null,
     activeFormTab: 'metrics',
-    projectToDelete: null
+    projectToDelete: null,
+    projectPlan: null,
+    collapsedTaskIds: new Set(),
+    wbsEditMode: false,
+    activeProfile: null,
+    latestApproval: null
 };
+
+const DUMMY_PROFILES = [
+    { id: "lead", name: "John Doe", role: "PMO Lead", avatar: "JD" },
+    { id: "director", name: "Sarah Smith", role: "Portfolio Director", avatar: "SS" },
+    { id: "pm", name: "Mike Johnson", role: "Project Manager", avatar: "MJ" }
+];
 
 // ==========================================================================
 // APPLICATION INITIALIZATION & NAV LISTENERS
 // ==========================================================================
 document.addEventListener("DOMContentLoaded", () => {
+    initProfiles();
     fetchData();
+    fetchPlanData();
     setupNavigation();
     setupFormListeners();
     setupModalListeners();
+    setupProjectPlanListeners();
 });
+
+function initProfiles() {
+    const savedProfileId = localStorage.getItem("activeProfileId");
+    let activeProfile = DUMMY_PROFILES[0];
+    if (savedProfileId) {
+        const found = DUMMY_PROFILES.find(p => p.id === savedProfileId);
+        if (found) activeProfile = found;
+    }
+    state.activeProfile = activeProfile;
+    updateActiveProfileUI();
+    setupProfileDropdownListeners();
+}
+
+function updateActiveProfileUI() {
+    const avatarEl = document.getElementById("active-profile-avatar");
+    const nameEl = document.getElementById("active-profile-name");
+    const roleEl = document.getElementById("active-profile-role");
+    
+    if (avatarEl) avatarEl.innerText = state.activeProfile.avatar;
+    if (nameEl) nameEl.innerText = state.activeProfile.name;
+    if (roleEl) roleEl.innerText = state.activeProfile.role;
+}
+
+function setupProfileDropdownListeners() {
+    const container = document.getElementById("profile-dropdown-container");
+    const menu = document.getElementById("profile-dropdown-menu");
+    
+    if (!container || !menu) return;
+    
+    const containerClone = container.cloneNode(true);
+    container.parentNode.replaceChild(containerClone, container);
+    
+    const newContainer = document.getElementById("profile-dropdown-container");
+    const newMenu = document.getElementById("profile-dropdown-menu");
+    
+    newContainer.addEventListener("click", (e) => {
+        e.stopPropagation();
+        newMenu.classList.toggle("hidden");
+    });
+    
+    document.addEventListener("click", () => {
+        newMenu.classList.add("hidden");
+    });
+    
+    newMenu.innerHTML = "";
+    DUMMY_PROFILES.forEach(profile => {
+        const item = document.createElement("button");
+        item.className = "profile-dropdown-item";
+        if (profile.id === state.activeProfile.id) {
+            item.classList.add("active");
+        }
+        item.innerHTML = `
+            <div class="avatar" style="width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; background-color: #e2e8f0; border: 1px solid #cbd5e1; font-size: 0.75rem;">${profile.avatar}</div>
+            <div class="profile-info">
+                <span class="username" style="font-weight: 600; font-size: 0.85rem; color: var(--primary-color);">${profile.name}</span>
+                <span class="userrole" style="font-size: 0.7rem; color: var(--secondary-color);">${profile.role}</span>
+            </div>
+        `;
+        
+        item.addEventListener("click", (e) => {
+            e.stopPropagation();
+            selectProfile(profile.id);
+            newMenu.classList.add("hidden");
+        });
+        
+        newMenu.appendChild(item);
+    });
+    
+    lucide.createIcons();
+}
+
+function selectProfile(profileId) {
+    const found = DUMMY_PROFILES.find(p => p.id === profileId);
+    if (found) {
+        state.activeProfile = found;
+        localStorage.setItem("activeProfileId", found.id);
+        updateActiveProfileUI();
+        setupProfileDropdownListeners();
+        showToast(`Switched active profile to ${found.name}.`, "info");
+        
+        // Reload data to check logs
+        fetchData();
+    }
+}
 
 // Navigation tab routing
 function setupNavigation() {
@@ -52,6 +150,10 @@ function setupNavigation() {
                 pageTitle.innerText = "PMO Review Board";
                 pageSubtitle.innerText = "Consolidation verification and report compiler controls";
                 renderReviewBoard();
+            } else if (targetTab === 'project-plan') {
+                pageTitle.innerText = "Project Plan Timeline";
+                pageSubtitle.innerText = "Interactive Work Breakdown Structure and task roadmaps";
+                renderProjectPlanView();
             }
             // Trigger icon rendering for new tab layouts
             lucide.createIcons();
@@ -119,6 +221,7 @@ function switchFormTab(tabName) {
 // ==========================================================================
 // CORE API OPERATIONS (GET / POST)
 // ==========================================================================
+
 async function fetchData() {
     try {
         const response = await fetch("/api/data");
@@ -130,10 +233,13 @@ async function fetchData() {
         state.risks = json.risks || [];
         state.nextsteps = json.nextsteps || [];
         state.decisions = json.decisions || [];
+        state.latestApproval = json.latestApproval || null;
 
-        // Initialize approval checkboxes
+        // Initialize approval checkboxes based on server-side approvals
         state.projects.forEach(p => {
-            if (state.approvedProjects[p.Project] === undefined) {
+            if (p["Approved By"]) {
+                state.approvedProjects[p.Project] = true;
+            } else {
                 state.approvedProjects[p.Project] = false;
             }
         });
@@ -141,10 +247,51 @@ async function fetchData() {
         populateDashboardTable();
         populateProjectDropdown();
         updateDashboardCards();
+        renderApprovalStatusBanner();
+        
+        if (document.getElementById("pmo-checklist")) {
+            renderChecklistCards();
+        }
+        
         showToast("Data synced from Excel backend successfully.", "success");
     } catch (e) {
         console.error(e);
         showToast("Error syncing from backend: " + e.message, "error");
+    }
+}
+
+async function silentFetchData() {
+    try {
+        const response = await fetch("/api/data");
+        if (!response.ok) throw new Error("Failed to fetch data silently");
+        const json = await response.json();
+        
+        state.projects = json.projects || [];
+        state.achievements = json.achievements || [];
+        state.risks = json.risks || [];
+        state.nextsteps = json.nextsteps || [];
+        state.decisions = json.decisions || [];
+        state.latestApproval = json.latestApproval || null;
+
+        // Initialize approval checkboxes based on server-side approvals
+        state.projects.forEach(p => {
+            if (p["Approved By"]) {
+                state.approvedProjects[p.Project] = true;
+            } else {
+                state.approvedProjects[p.Project] = false;
+            }
+        });
+
+        populateDashboardTable();
+        populateProjectDropdown();
+        updateDashboardCards();
+        renderApprovalStatusBanner();
+        
+        if (document.getElementById("pmo-checklist")) {
+            renderChecklistCards();
+        }
+    } catch (e) {
+        console.error("Silent sync error:", e);
     }
 }
 
@@ -458,27 +605,69 @@ function openDeleteProjectModal(projectName) {
     lucide.createIcons();
 }
 
-function executeProjectDeletion(projectName) {
-    state.projects = state.projects.filter(p => p.Project !== projectName);
-    state.achievements = state.achievements.filter(a => a.Project !== projectName);
-    state.risks = state.risks.filter(r => r.Project !== projectName);
-    state.nextsteps = state.nextsteps.filter(n => n.Project !== projectName);
-    state.decisions = state.decisions.filter(d => d.Project !== projectName);
+async function executeProjectDeletion(projectName) {
+    // Show loading toast and disable row interaction
+    showToast(`Deleting "${projectName}" from server...`, "info");
     
-    delete state.approvedProjects[projectName];
-    
-    populateDashboardTable();
-    populateProjectDropdown();
-    updateDashboardCards();
-    
-    if (state.selectedProjectName === projectName) {
-        state.selectedProjectName = null;
-        document.getElementById("project-select").value = "";
-        document.getElementById("pm-update-form").classList.add("hidden");
-        document.getElementById("no-project-selected").classList.remove("hidden");
+    // Find visual row to apply loading opacity
+    const row = document.querySelector(`tr[data-project="${projectName}"]`);
+    if (row) {
+        row.style.opacity = "0.5";
+        row.style.pointerEvents = "none";
     }
-    
-    showToast(`Project "${projectName}" and all its details deleted locally.`, "success");
+
+    try {
+        // Prepare filtered datasets
+        const updatedProjects = state.projects.filter(p => p.Project !== projectName);
+        const updatedAchievements = state.achievements.filter(a => a.Project !== projectName);
+        const updatedRisks = state.risks.filter(r => r.Project !== projectName);
+        const updatedNextsteps = state.nextsteps.filter(n => n.Project !== projectName);
+        const updatedDecisions = state.decisions.filter(d => d.Project !== projectName);
+
+        const response = await fetch('/api/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                projects: updatedProjects,
+                achievements: updatedAchievements,
+                risks: updatedRisks,
+                nextsteps: updatedNextsteps,
+                decisions: updatedDecisions
+            })
+        });
+
+        if (!response.ok) throw new Error('Server returned error');
+        await response.json();
+
+        // Commit filtered sets to global state
+        state.projects = updatedProjects;
+        state.achievements = updatedAchievements;
+        state.risks = updatedRisks;
+        state.nextsteps = updatedNextsteps;
+        state.decisions = updatedDecisions;
+        delete state.approvedProjects[projectName];
+
+        // Re-render components
+        populateDashboardTable();
+        populateProjectDropdown();
+        updateDashboardCards();
+        
+        if (state.selectedProjectName === projectName) {
+            state.selectedProjectName = null;
+            document.getElementById("project-select").value = "";
+            document.getElementById("pm-update-form").classList.add("hidden");
+            document.getElementById("no-project-selected").classList.remove("hidden");
+        }
+
+        showToast(`Project "${projectName}" permanently deleted.`, "success");
+    } catch (e) {
+        console.error(e);
+        if (row) {
+            row.style.opacity = "1";
+            row.style.pointerEvents = "auto";
+        }
+        showToast(`Failed to delete project on server: ${e.message}`, "error");
+    }
 }
 
 function getStatusLabel(delay, risk) {
@@ -1017,11 +1206,20 @@ function setupWorkflowListeners() {
     document.getElementById('btn-goto-step2').addEventListener('click', () => setWorkflowStep(2));
     document.getElementById('btn-back-step1').addEventListener('click', () => setWorkflowStep(1));
     document.getElementById('btn-back-step2-from-3').addEventListener('click', () => setWorkflowStep(2));
-    document.getElementById('btn-new-cycle').addEventListener('click', () => {
+
+    document.getElementById('btn-new-cycle').addEventListener('click', async () => {
+        try {
+            await fetch('/api/approve/reset', { method: 'POST' });
+        } catch (e) {
+            console.error("Failed to reset approvals on server:", e);
+        }
         // Reset approvals and start over
         Object.keys(state.approvedProjects).forEach(k => state.approvedProjects[k] = false);
+        state.latestApproval = null;
+        renderApprovalStatusBanner();
         setWorkflowStep(1);
         renderChecklistCards();
+        silentFetchData();
     });
 
     // Compile button opens confirmation modal
@@ -1030,13 +1228,41 @@ function setupWorkflowListeners() {
     // Select All / Clear All
     replaceWithClone(document.getElementById('btn-select-all'));
     replaceWithClone(document.getElementById('btn-deselect-all'));
-    document.getElementById('btn-select-all').addEventListener('click', () => {
-        state.projects.forEach(p => state.approvedProjects[p.Project] = true);
+    document.getElementById('btn-select-all').addEventListener('click', async () => {
+        const approvals = {};
+        state.projects.forEach(p => {
+            state.approvedProjects[p.Project] = true;
+            approvals[p.Project] = `${state.activeProfile.name} (${state.activeProfile.role})`;
+        });
         renderChecklistCards();
+        try {
+            await fetch('/api/approve/bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ approvals })
+            });
+            silentFetchData();
+        } catch (e) {
+            console.error("Bulk approval sync failed:", e);
+        }
     });
-    document.getElementById('btn-deselect-all').addEventListener('click', () => {
-        state.projects.forEach(p => state.approvedProjects[p.Project] = false);
+    document.getElementById('btn-deselect-all').addEventListener('click', async () => {
+        const approvals = {};
+        state.projects.forEach(p => {
+            state.approvedProjects[p.Project] = false;
+            approvals[p.Project] = null;
+        });
         renderChecklistCards();
+        try {
+            await fetch('/api/approve/bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ approvals })
+            });
+            silentFetchData();
+        } catch (e) {
+            console.error("Bulk clear sync failed:", e);
+        }
     });
 
     // Confirmation modal buttons
@@ -1083,6 +1309,10 @@ function renderChecklistCards() {
         // Simulated last updated time (in production this would come from server)
         const lastUpdated = getSimulatedLastUpdated(p.Project);
 
+        const approvedByText = p["Approved By"] ? 
+            `<span style="color: var(--green); font-weight: 600; display: inline-flex; align-items: center; gap: 4px;"><i data-lucide="check-circle" style="width:12px;height:12px;color:var(--green);"></i> Approved by: ${escapeHtml(p["Approved By"])}</span>` : 
+            '';
+
         card.innerHTML = `
             <input type="checkbox" class="checklist-cb" ${isApproved ? 'checked' : ''}>
             <div class="checklist-meta">
@@ -1095,6 +1325,7 @@ function renderChecklistCards() {
                     <span><i data-lucide="clock" style="width:12px;height:12px;"></i> Delay: ${delay}d</span>
                     <span><i data-lucide="alert-triangle" style="width:12px;height:12px;"></i> Risks: ${state.risks.filter(r => r.Project === p.Project).length}</span>
                     <span><i data-lucide="calendar" style="width:12px;height:12px;"></i> Updated: ${lastUpdated}</span>
+                    ${approvedByText}
                 </div>
                 <div class="section-badges">
                     ${sections.map(s => `<span class="section-badge ${s.done ? 'complete' : 'empty'}">${s.done ? '✓' : '✗'} ${s.name}</span>`).join('')}
@@ -1104,12 +1335,36 @@ function renderChecklistCards() {
 
         // Checkbox listener
         const cb = card.querySelector('.checklist-cb');
-        cb.addEventListener('change', (e) => {
+        cb.addEventListener('change', async (e) => {
             e.stopPropagation();
-            state.approvedProjects[p.Project] = cb.checked;
-            if (cb.checked) card.classList.add('approved');
+            const checked = cb.checked;
+            state.approvedProjects[p.Project] = checked;
+            if (checked) card.classList.add('approved');
             else card.classList.remove('approved');
             updateApprovalProgress();
+
+            try {
+                const approvedBy = checked ? `${state.activeProfile.name} (${state.activeProfile.role})` : null;
+                const response = await fetch('/api/approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        project: p.Project,
+                        approvedBy: approvedBy
+                    })
+                });
+                if (!response.ok) throw new Error("Approval sync failed");
+                silentFetchData();
+            } catch (err) {
+                console.error("Failed to sync approval status:", err);
+                showToast("Failed to sync approval status with server.", "error");
+                // Revert
+                cb.checked = !checked;
+                state.approvedProjects[p.Project] = !checked;
+                if (!checked) card.classList.add('approved');
+                else card.classList.remove('approved');
+                updateApprovalProgress();
+            }
         });
 
         // Prevent card click from toggling checkbox twice
@@ -1336,7 +1591,6 @@ function getProjectSummaryText(projName, status) {
            status === 'Yellow' ? 'Experiencing slight delays with recovery strategies in progress.' :
            'Critical slippage impacting key delivery milestones.';
 }
-
 // --- Compile Confirmation Modal ---
 function setupCompileModalListeners() {
     const modal = document.getElementById('compile-confirm-modal');
@@ -1353,7 +1607,7 @@ function setupCompileModalListeners() {
 
     confirmBtn.addEventListener('click', async () => {
         closeModal();
-        await executeCompilation();
+        await executeCompilation(state.activeProfile.name + " (" + state.activeProfile.role + ")");
     });
 }
 
@@ -1369,11 +1623,16 @@ function openCompileConfirmModal() {
         list.appendChild(li);
     });
 
+    const compilerNameEl = document.getElementById("confirm-modal-compiler-name");
+    if (compilerNameEl) {
+        compilerNameEl.innerText = `${state.activeProfile.name} (${state.activeProfile.role})`;
+    }
+
     modal.classList.remove('hidden');
     lucide.createIcons();
 }
 
-async function executeCompilation() {
+async function executeCompilation(approvedBy) {
     const compileBtn = document.getElementById('btn-compile-report');
     compileBtn.disabled = true;
     compileBtn.innerHTML = "<i data-lucide='loader' class='icon anim-spin'></i> Generating Document...";
@@ -1384,6 +1643,8 @@ async function executeCompilation() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                approvedBy: approvedBy,
+                approvedProjects: state.projects.filter(p => state.approvedProjects[p.Project]).map(p => p.Project),
                 projects: state.projects,
                 achievements: state.achievements,
                 risks: state.risks,
@@ -1403,6 +1664,7 @@ async function executeCompilation() {
         const metaInfo = document.getElementById('report-meta-info');
         metaInfo.innerHTML = `
             <div class="meta-row"><span class="meta-label">Generated At</span><span>${now.toLocaleString()}</span></div>
+            <div class="meta-row"><span class="meta-label">Approved By</span><span>${escapeHtml(approvedBy)}</span></div>
             <div class="meta-row"><span class="meta-label">Projects Included</span><span>${approvedCount}</span></div>
             <div class="meta-row"><span class="meta-label">Report File</span><span>PMO_Executive_Report.docx</span></div>
             <div class="meta-row"><span class="meta-label">Data File</span><span>PMO_Weekly_Report_Data.xlsx</span></div>
@@ -1542,4 +1804,470 @@ function showToast(message, type = "info") {
     setTimeout(() => {
         toast.classList.add("hidden");
     }, 4000);
+}
+
+// ==========================================================================
+// PROJECT PLAN MODULE - TIMELINE & WBS TREE RENDERING
+// ==========================================================================
+
+async function fetchPlanData() {
+    try {
+        const response = await fetch("/api/plan/data");
+        if (!response.ok) throw new Error("Failed to fetch plan data");
+        const data = await response.json();
+        if (data && data.projectName && data.tasks && data.tasks.length > 0) {
+            state.projectPlan = data;
+            state.collapsedTaskIds = state.collapsedTaskIds || new Set();
+            const activeTabEl = document.querySelector(".menu-item.active");
+            if (activeTabEl && activeTabEl.getAttribute("data-tab") === 'project-plan') {
+                renderProjectPlanView();
+            }
+        }
+    } catch (e) {
+        console.error("Error fetching plan data:", e);
+    }
+}
+
+function setupProjectPlanListeners() {
+    const dropzone = document.getElementById("dropzone");
+    const fileInput = document.getElementById("plan-file-input");
+    const parseBtn = document.getElementById("btn-parse-plan");
+    const cancelBtn = document.getElementById("btn-cancel-upload");
+    const statusEl = document.getElementById("upload-status");
+    const fileNameEl = document.getElementById("upload-file-name");
+    const fileSizeEl = document.getElementById("upload-file-size");
+    const progressBar = document.getElementById("upload-progress-bar");
+    const reuploadBtn = document.getElementById("btn-reupload-plan");
+
+    if (!dropzone) return;
+
+    // Trigger file input on click
+    dropzone.addEventListener("click", () => {
+        fileInput.click();
+    });
+
+    // Prevent propagation to avoid infinite recursive click loop
+    fileInput.addEventListener("click", (e) => {
+        e.stopPropagation();
+    });
+
+    // Drag & drop events
+    dropzone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropzone.classList.add("dragover");
+    });
+
+    dropzone.addEventListener("dragleave", () => {
+        dropzone.classList.remove("dragover");
+    });
+
+    dropzone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropzone.classList.remove("dragover");
+        if (e.dataTransfer.files.length > 0) {
+            handleFileSelection(e.dataTransfer.files[0]);
+        }
+    });
+
+    // File input selection event
+    fileInput.addEventListener("change", (e) => {
+        if (e.target.files.length > 0) {
+            handleFileSelection(e.target.files[0]);
+        }
+    });
+
+    let selectedFile = null;
+
+    function handleFileSelection(file) {
+        if (file.type !== "application/pdf") {
+            showToast("Please select a valid PDF document.", "error");
+            return;
+        }
+        selectedFile = file;
+        fileNameEl.innerText = file.name;
+        fileSizeEl.innerText = `(${(file.size / (1024 * 1024)).toFixed(2)} MB)`;
+        statusEl.classList.remove("hidden");
+        progressBar.style.width = "0%";
+    }
+
+    cancelBtn.addEventListener("click", (e) => {
+        e.stopPropagation(); // Prevent dropzone click trigger
+        selectedFile = null;
+        fileInput.value = "";
+        statusEl.classList.add("hidden");
+    });
+
+    parseBtn.addEventListener("click", async (e) => {
+        e.stopPropagation(); // Prevent dropzone click trigger
+        if (!selectedFile) return;
+
+        parseBtn.disabled = true;
+        parseBtn.innerHTML = "<i data-lucide='loader' class='icon anim-spin'></i> Parsing PDF...";
+        lucide.createIcons();
+
+        // Simulate/track upload progress bar
+        let progress = 0;
+        const interval = setInterval(() => {
+            if (progress < 90) {
+                progress += 10;
+                progressBar.style.width = progress + "%";
+            }
+        }, 150);
+
+        try {
+            const formData = new FormData();
+            formData.append("file", selectedFile);
+
+            const response = await fetch("/api/plan/upload", {
+                method: "POST",
+                body: formData
+            });
+
+            clearInterval(interval);
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.message || "Parse failed");
+            }
+
+            progressBar.style.width = "100%";
+            const result = await response.json();
+            showToast(result.message || "Successfully parsed plan PDF.", "success");
+
+            // Save to local state
+            state.projectPlan = {
+                projectName: result.projectName,
+                tasks: result.tasks
+            };
+            state.collapsedTaskIds = new Set();
+
+            // Reset and show parsed plan
+            selectedFile = null;
+            fileInput.value = "";
+            statusEl.classList.add("hidden");
+            renderProjectPlanView();
+
+        } catch (e) {
+            clearInterval(interval);
+            progressBar.style.width = "0%";
+            showToast("Failed to parse PDF: " + e.message, "error");
+        } finally {
+            parseBtn.disabled = false;
+            parseBtn.innerHTML = "<i data-lucide='cpu' style='width: 14px; height: 14px;'></i> Parse & Process Schedule";
+            lucide.createIcons();
+        }
+    });
+
+    // Reupload button inside project plan view
+    reuploadBtn.addEventListener("click", () => {
+        state.projectPlan = null;
+        document.getElementById("plan-data-view").classList.add("hidden");
+        document.getElementById("plan-upload-section").classList.remove("hidden");
+    });
+
+    // WBS Edit Mode Buttons & Event Delegation
+    const toggleEditBtn = document.getElementById("btn-toggle-wbs-edit");
+    const savePlanBtn = document.getElementById("btn-save-plan-changes");
+
+    if (toggleEditBtn) {
+        toggleEditBtn.addEventListener("click", () => {
+            state.wbsEditMode = !state.wbsEditMode;
+            
+            if (state.wbsEditMode) {
+                toggleEditBtn.innerHTML = `<i data-lucide="x" style="width: 14px; height: 14px;"></i> Cancel Edit`;
+                toggleEditBtn.className = "btn btn-secondary btn-sm active";
+                savePlanBtn.classList.remove("hidden");
+            } else {
+                toggleEditBtn.innerHTML = `<i data-lucide="edit-3" style="width: 14px; height: 14px;"></i> Edit Mode`;
+                toggleEditBtn.className = "btn btn-secondary btn-sm";
+                savePlanBtn.classList.add("hidden");
+                // Reset changes by re-fetching plan data
+                fetchPlanData();
+            }
+            renderWBSTable();
+            lucide.createIcons();
+        });
+    }
+
+    if (savePlanBtn) {
+        savePlanBtn.addEventListener("click", async () => {
+            savePlanBtn.disabled = true;
+            savePlanBtn.innerHTML = `<i data-lucide="loader" class="icon anim-spin"></i> Saving...`;
+            lucide.createIcons();
+
+            try {
+                const response = await fetch("/api/plan/save", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(state.projectPlan)
+                });
+
+                if (!response.ok) throw new Error("Failed to save project plan updates");
+
+                showToast("Project plan updates saved permanently on server.", "success");
+                state.wbsEditMode = false;
+                toggleEditBtn.innerHTML = `<i data-lucide="edit-3" style="width: 14px; height: 14px;"></i> Edit Mode`;
+                toggleEditBtn.className = "btn btn-secondary btn-sm";
+                savePlanBtn.classList.add("hidden");
+                
+                // Refresh local UI stats with newly saved plan data
+                await fetchPlanData();
+            } catch (e) {
+                console.error(e);
+                showToast("Failed to save updates: " + e.message, "error");
+            } finally {
+                savePlanBtn.disabled = false;
+                savePlanBtn.innerHTML = `<i data-lucide="save" style="width: 14px; height: 14px;"></i> Save Changes`;
+                lucide.createIcons();
+            }
+        });
+    }
+
+    // Input event delegation on table body to update state in real-time
+    const tbody = document.getElementById("wbs-table-body");
+    if (tbody) {
+        tbody.addEventListener("input", (e) => {
+            const target = e.target;
+            if (target && target.classList.contains("wbs-cell-input")) {
+                const taskId = parseInt(target.getAttribute("data-task-id"));
+                const field = target.getAttribute("data-field");
+                const value = target.value;
+
+                if (state.projectPlan && state.projectPlan.tasks) {
+                    const task = state.projectPlan.tasks.find(t => t.id === taskId);
+                    if (task) {
+                        task[field] = value;
+                    }
+                }
+            }
+        });
+    }
+}
+
+function renderProjectPlanView() {
+    const uploadSection = document.getElementById("plan-upload-section");
+    const dataView = document.getElementById("plan-data-view");
+
+    if (!state.projectPlan || !state.projectPlan.tasks || state.projectPlan.tasks.length === 0) {
+        uploadSection.classList.remove("hidden");
+        dataView.classList.add("hidden");
+        return;
+    }
+
+    uploadSection.classList.add("hidden");
+    dataView.classList.remove("hidden");
+
+    // Populate metadata
+    document.getElementById("plan-stat-name").innerText = state.projectPlan.projectName || "Freedom Telecom";
+    
+    const tasks = state.projectPlan.tasks;
+    let totalTasks = tasks.length;
+    let milestonesCount = 0;
+    
+    let projectProgress = "0%";
+    if (tasks.length > 0) {
+        projectProgress = tasks[0].percentComplete || "0%";
+    }
+    document.getElementById("plan-stat-progress").innerText = projectProgress;
+    document.getElementById("plan-stat-tasks").innerText = totalTasks;
+
+    let startStr = "-";
+    let finishStr = "-";
+    if (tasks.length > 0) {
+        startStr = tasks[0].start || "-";
+        finishStr = tasks[0].finish || "-";
+        
+        tasks.forEach(t => {
+            const dur = (t.duration || "").toLowerCase();
+            if (dur.includes("0 day") || dur === "0d" || dur.includes("0e") || dur.startsWith("0")) {
+                milestonesCount++;
+            }
+        });
+    }
+    
+    document.getElementById("plan-stat-dates").innerText = `Timeline: ${startStr} to ${finishStr}`;
+    document.getElementById("plan-stat-milestones").innerText = milestonesCount;
+
+    // Render WBS table
+    renderWBSTable();
+}
+
+function renderWBSTable() {
+    const tbody = document.getElementById("wbs-table-body");
+    tbody.innerHTML = "";
+
+    if (!state.projectPlan || !state.projectPlan.tasks) return;
+
+    const tasks = state.projectPlan.tasks;
+    state.collapsedTaskIds = state.collapsedTaskIds || new Set();
+
+    // Precalculate whether a task is a parent row (summary row)
+    tasks.forEach((t, i) => {
+        t.isParent = (i < tasks.length - 1) && (tasks[i + 1].level > t.level);
+    });
+
+    let currentHiddenLevel = Infinity;
+
+    tasks.forEach(task => {
+        const isHidden = task.level > currentHiddenLevel;
+        
+        if (!isHidden) {
+            if (state.collapsedTaskIds.has(task.id)) {
+                currentHiddenLevel = Math.min(currentHiddenLevel, task.level);
+            } else {
+                currentHiddenLevel = Infinity;
+            }
+        }
+
+        const tr = document.createElement("tr");
+        if (isHidden) {
+            tr.style.display = "none";
+        }
+
+        const isMilestone = (task.duration || "").toLowerCase().includes("0 day") || 
+                            (task.duration || "").toLowerCase() === "0d" ||
+                            (task.duration || "").toLowerCase().includes("0e") ||
+                            (task.duration || "").toLowerCase().startsWith("0");
+        
+        if (task.isParent) {
+            tr.classList.add("wbs-parent-row");
+        } else if (isMilestone) {
+            tr.classList.add("wbs-milestone-row");
+        }
+
+        let chevronHTML = "";
+        if (task.isParent) {
+            const isCollapsed = state.collapsedTaskIds.has(task.id);
+            const chevronClass = isCollapsed ? "" : "expanded";
+            chevronHTML = `
+                <span class="expand-toggle ${chevronClass}" style="margin-right: 6px; cursor: pointer;">
+                    <i data-lucide="chevron-right" style="width: 14px; height: 14px;"></i>
+                </span>
+            `;
+        } else {
+            chevronHTML = `<span style="display: inline-block; width: 20px;"></span>`;
+        }
+
+        const indentLevel = Math.min(Math.max(task.level, 1), 6);
+        const indentClass = `wbs-indent-${indentLevel}`;
+
+        const pctVal = parseInt(task.percentComplete) || 0;
+        let progressClass = "in-progress";
+        if (pctVal === 100) {
+            progressClass = ""; 
+        } else if (pctVal === 0) {
+            progressClass = "not-started";
+        }
+        
+        const progressHTML = `
+            <div class="cell-progress-container">
+                <div class="cell-progress-track">
+                    <div class="cell-progress-fill ${progressClass}" style="width: ${pctVal}%"></div>
+                </div>
+                <span>${task.percentComplete || "0%"}</span>
+            </div>
+        `;
+
+        let resourcesHTML = "";
+        if (task.resources) {
+            const resList = task.resources.split(/[;,]/).map(r => r.trim()).filter(Boolean);
+            resourcesHTML = `<div class="resource-chips-container">` + 
+                resList.map(res => {
+                    const isFT = res.toUpperCase().includes("FT");
+                    const chipClass = isFT ? "resource-chip ft" : "resource-chip";
+                    return `<span class="${chipClass}">${escapeHtml(res)}</span>`;
+                }).join("") + 
+                `</div>`;
+        }
+
+        if (state.wbsEditMode) {
+            tr.innerHTML = `
+                <td>${task.id}</td>
+                <td class="${indentClass}" style="vertical-align: middle;">
+                    <div style="display: flex; align-items: center; width: 100%;">
+                        ${chevronHTML}
+                        <input type="text" class="wbs-cell-input" value="${escapeHtml(task.name)}" data-task-id="${task.id}" data-field="name" style="font-weight: inherit;">
+                    </div>
+                </td>
+                <td><input type="text" class="wbs-cell-input" value="${escapeHtml(task.duration || '')}" data-task-id="${task.id}" data-field="duration"></td>
+                <td><input type="text" class="wbs-cell-input" value="${escapeHtml(task.baselineStart || '')}" data-task-id="${task.id}" data-field="baselineStart"></td>
+                <td><input type="text" class="wbs-cell-input" value="${escapeHtml(task.baselineFinish || '')}" data-task-id="${task.id}" data-field="baselineFinish"></td>
+                <td><input type="text" class="wbs-cell-input" value="${escapeHtml(task.start || '')}" data-task-id="${task.id}" data-field="start"></td>
+                <td><input type="text" class="wbs-cell-input" value="${escapeHtml(task.finish || '')}" data-task-id="${task.id}" data-field="finish"></td>
+                <td><input type="text" class="wbs-cell-input" value="${escapeHtml(task.percentComplete || '')}" data-task-id="${task.id}" data-field="percentComplete"></td>
+                <td><input type="text" class="wbs-cell-input" value="${escapeHtml(task.resources || '')}" data-task-id="${task.id}" data-field="resources"></td>
+                <td><input type="text" class="wbs-cell-input" value="${escapeHtml(task.predecessors || '')}" data-task-id="${task.id}" data-field="predecessors"></td>
+            `;
+        } else {
+            tr.innerHTML = `
+                <td>${task.id}</td>
+                <td class="${indentClass}" style="vertical-align: middle;">
+                    <div style="display: flex; align-items: center;">
+                        ${chevronHTML}
+                        <span class="task-display-name">${escapeHtml(task.name)}</span>
+                    </div>
+                </td>
+                <td>${task.duration || ""}</td>
+                <td>${task.baselineStart || ""}</td>
+                <td>${task.baselineFinish || ""}</td>
+                <td>${task.start || ""}</td>
+                <td>${task.finish || ""}</td>
+                <td>${progressHTML}</td>
+                <td>${resourcesHTML}</td>
+                <td>${task.predecessors || ""}</td>
+            `;
+        }
+
+        if (task.isParent) {
+            const toggleBtn = tr.querySelector(".expand-toggle");
+            toggleBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                if (state.collapsedTaskIds.has(task.id)) {
+                    state.collapsedTaskIds.delete(task.id);
+                } else {
+                    state.collapsedTaskIds.add(task.id);
+                }
+                renderWBSTable();
+            });
+        }
+
+        tbody.appendChild(tr);
+    });
+
+    lucide.createIcons();
+}
+
+function renderApprovalStatusBanner() {
+    const wrapper = document.getElementById("approval-status-banner-wrapper");
+    if (!wrapper) return;
+    
+    if (state.latestApproval && state.latestApproval["Approved By"]) {
+        const approver = state.latestApproval["Approved By"];
+        const timestamp = state.latestApproval["Timestamp"];
+        const projects = state.latestApproval["Approved Projects"];
+        
+        let dateStr = timestamp;
+        try {
+            const d = new Date(timestamp);
+            if (!isNaN(d.getTime())) {
+                dateStr = d.toLocaleString('en-US', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            }
+        } catch(err) {}
+        
+        wrapper.innerHTML = `
+            <div class="status-banner locked">
+                <i data-lucide="lock" style="width: 24px; height: 24px; color: var(--green); flex-shrink: 0; margin-right: 4px;"></i>
+                <div style="flex-grow: 1;">
+                    <div class="status-banner-title">Weekly Report Compiled & Locked</div>
+                    <div class="status-banner-desc">Approved and locked by <strong>${escapeHtml(approver)}</strong> on <strong>${dateStr}</strong>.</div>
+                    <div class="status-banner-desc" style="font-size: 0.75rem; margin-top: 4px;">Projects included: ${escapeHtml(projects || "None")}</div>
+                </div>
+            </div>
+        `;
+    } else {
+        wrapper.innerHTML = "";
+    }
+    lucide.createIcons();
 }
