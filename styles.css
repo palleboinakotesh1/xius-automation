@@ -161,7 +161,7 @@ body {
     margin-left: 260px;
     flex-grow: 1;
     padding: 40px;
-    max-width: 1200px;
+    max-width: 100%;
 }
 
 /* Top Navigation Bar */
@@ -1891,7 +1891,50 @@ svg {
     color: var(--text-muted);
 }
 
+/* Horizontal Scroll Hint Banner & Prominent Scrollbars */
+.scroll-hint-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: rgba(59, 130, 246, 0.05);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: var(--border-radius-sm);
+    padding: 10px 16px;
+    font-size: 0.82rem;
+    color: var(--primary-color);
+    margin-bottom: 20px;
+    font-weight: 500;
+}
 
+.scroll-icon-anim {
+    margin-left: auto;
+    font-size: 1.1rem;
+    color: #3b82f6;
+    animation: bounceHorizontal 1.8s infinite ease-in-out;
+}
 
+@keyframes bounceHorizontal {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(6px); }
+}
 
+/* Highly visible scrollbar for table scroll containers */
+.table-scroll::-webkit-scrollbar {
+    height: 12px;
+}
 
+.table-scroll::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+}
+
+.table-scroll::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 6px;
+    border: 2px solid #f1f5f9;
+}
+
+.table-scroll::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}

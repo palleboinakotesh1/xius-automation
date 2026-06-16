@@ -1713,7 +1713,7 @@ function setupModalListeners() {
     });
 
     // Form submission inside modal
-    form.addEventListener("submit", (e) => {
+    form.addEventListener("submit", async (e) => {
         e.preventDefault();
         
         const projName = document.getElementById("modal-input-name").value.trim();
@@ -1737,32 +1737,51 @@ function setupModalListeners() {
             "Actual Cost": 0,
             "Delay Days": 0,
             "Risk Score": 1,
-            "Status": "Green",
-            "CPI": 1.0,
-            "SPI": 1.0,
-            "Budget Consumed %": 0.0,
-            "Progress %": 0.0,
-            "OneLineSummary": "On schedule and within budget."
+            "Approved By": null
         };
 
-        state.projects.push(newProj);
-        state.approvedProjects[projName] = false;
+        showToast(`Adding project "${projName}" to server...`, "info");
 
-        // Re-render dashboard components
-        populateDashboardTable();
-        populateProjectDropdown();
-        updateDashboardCards();
-        
-        // Hide modal
-        closeModal();
-        showToast(`Project "${projName}" created successfully!`, "success");
+        try {
+            const updatedProjects = [...state.projects, newProj];
+            const response = await fetch('/api/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    projects: updatedProjects,
+                    achievements: state.achievements,
+                    risks: state.risks,
+                    nextsteps: state.nextsteps,
+                    decisions: state.decisions
+                })
+            });
 
-        // Automatically switch to form entry and select this project
-        document.querySelector("[data-tab='entry-form']").click();
-        const select = document.getElementById("project-select");
-        select.value = projName;
-        state.selectedProjectName = projName;
-        loadProjectIntoForm(projName);
+            if (!response.ok) throw new Error('Server returned error');
+            await response.json();
+
+            // Commit to local state
+            state.projects.push(newProj);
+            state.approvedProjects[projName] = false;
+
+            // Re-render dashboard components
+            populateDashboardTable();
+            populateProjectDropdown();
+            updateDashboardCards();
+            
+            // Hide modal
+            closeModal();
+            showToast(`Project "${projName}" created successfully and synced with server!`, "success");
+
+            // Automatically switch to form entry and select this project
+            document.querySelector("[data-tab='entry-form']").click();
+            const select = document.getElementById("project-select");
+            select.value = projName;
+            state.selectedProjectName = projName;
+            loadProjectIntoForm(projName);
+        } catch (err) {
+            console.error(err);
+            showToast("Failed to save new project to server: " + err.message, "error");
+        }
     });
 
     // --- Setup Delete Confirmation Modal Listeners ---
