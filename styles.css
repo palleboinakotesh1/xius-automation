@@ -658,6 +658,16 @@ body {
     background-color: var(--red-bg);
 }
 
+.btn.btn-danger {
+    background-color: var(--red);
+    color: #fff;
+    border: 1px solid transparent;
+}
+
+.btn.btn-danger:hover:not(:disabled) {
+    background-color: #b91c1c;
+}
+
 /* Empty State Styling */
 .empty-state {
     text-align: center;

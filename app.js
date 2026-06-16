@@ -19,9 +19,11 @@ let state = {
 };
 
 const DUMMY_PROFILES = [
-    { id: "lead", name: "John Doe", role: "PMO Lead", avatar: "JD" },
-    { id: "director", name: "Sarah Smith", role: "Portfolio Director", avatar: "SS" },
-    { id: "pm", name: "Mike Johnson", role: "Project Manager", avatar: "MJ" }
+    { id: "alex", name: "Alex Marques", role: "Account Lead", avatar: "AM" },
+    { id: "alejandro", name: "Alejandro", role: "Account Director", avatar: "AL" },
+    { id: "luis", name: "Luis", role: "Account Manager", avatar: "LU" },
+    { id: "madhava", name: "Madhava reddy", role: "Account Executive", avatar: "MR" },
+    { id: "mario", name: "Mario", role: "Account Controller", avatar: "MA" }
 ];
 
 // ==========================================================================
@@ -1965,6 +1967,28 @@ function setupProjectPlanListeners() {
         document.getElementById("plan-upload-section").classList.remove("hidden");
     });
 
+    // Delete entire project plan button inside project plan view
+    const deleteEntirePlanBtn = document.getElementById("btn-delete-entire-plan");
+    if (deleteEntirePlanBtn) {
+        deleteEntirePlanBtn.addEventListener("click", async () => {
+            if (!confirm("Are you sure you want to permanently delete this project plan from the database? This cannot be undone.")) {
+                return;
+            }
+            
+            try {
+                const response = await fetch("/api/plan/delete", { method: "POST" });
+                if (!response.ok) throw new Error("Delete request failed");
+                
+                showToast("Project plan deleted successfully.", "success");
+                state.projectPlan = null;
+                renderProjectPlanView();
+            } catch (e) {
+                console.error(e);
+                showToast("Failed to delete project plan: " + e.message, "error");
+            }
+        });
+    }
+
     // WBS Edit Mode Buttons & Event Delegation
     const toggleEditBtn = document.getElementById("btn-toggle-wbs-edit");
     const savePlanBtn = document.getElementById("btn-save-plan-changes");
@@ -2039,6 +2063,21 @@ function setupProjectPlanListeners() {
                     const task = state.projectPlan.tasks.find(t => t.id === taskId);
                     if (task) {
                         task[field] = value;
+                    }
+                }
+            }
+        });
+
+        tbody.addEventListener("click", (e) => {
+            const deleteBtn = e.target.closest(".wbs-delete-btn");
+            if (deleteBtn) {
+                e.stopPropagation();
+                const taskId = parseInt(deleteBtn.getAttribute("data-task-id"));
+                if (state.projectPlan && state.projectPlan.tasks) {
+                    if (confirm(`Are you sure you want to delete task ID ${taskId}?`)) {
+                        state.projectPlan.tasks = state.projectPlan.tasks.filter(t => t.id !== taskId);
+                        renderWBSTable();
+                        showToast(`Deleted task ID ${taskId}. Click Save Changes to commit.`, "info");
                     }
                 }
             }
@@ -2199,6 +2238,11 @@ function renderWBSTable() {
                 <td><input type="text" class="wbs-cell-input" value="${escapeHtml(task.percentComplete || '')}" data-task-id="${task.id}" data-field="percentComplete"></td>
                 <td><input type="text" class="wbs-cell-input" value="${escapeHtml(task.resources || '')}" data-task-id="${task.id}" data-field="resources"></td>
                 <td><input type="text" class="wbs-cell-input" value="${escapeHtml(task.predecessors || '')}" data-task-id="${task.id}" data-field="predecessors"></td>
+                <td style="text-align: center;">
+                    <button type="button" class="btn-danger wbs-delete-btn" data-task-id="${task.id}" title="Delete Task" style="padding: 2px 6px;">
+                        <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                    </button>
+                </td>
             `;
         } else {
             tr.innerHTML = `
@@ -2217,6 +2261,7 @@ function renderWBSTable() {
                 <td>${progressHTML}</td>
                 <td>${resourcesHTML}</td>
                 <td>${task.predecessors || ""}</td>
+                <td></td>
             `;
         }
 

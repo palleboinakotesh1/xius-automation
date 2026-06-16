@@ -452,6 +452,21 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                 self.send_error_response(500, f"Error saving project plan: {str(e)}")
             return
 
+        elif path == "/api/plan/delete":
+            try:
+                plan_path = "project_plan.json"
+                if os.path.exists(plan_path):
+                    os.remove(plan_path)
+                self.send_json_response(200, {
+                    "status": "success",
+                    "message": "Project plan deleted successfully."
+                })
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                self.send_error_response(500, f"Error deleting project plan: {str(e)}")
+            return
+
         elif path == "/api/approve":
             try:
                 content_length = int(self.headers['Content-Length'])
