@@ -19,11 +19,11 @@ let state = {
 };
 
 const DUMMY_PROFILES = [
-    { id: "alex", name: "Alex Marques", role: "Account Lead", avatar: "AM" },
-    { id: "alejandro", name: "Alejandro", role: "Account Director", avatar: "AL" },
-    { id: "luis", name: "Luis", role: "Account Manager", avatar: "LU" },
-    { id: "madhava", name: "Madhava reddy", role: "Account Executive", avatar: "MR" },
-    { id: "mario", name: "Mario", role: "Account Controller", avatar: "MA" }
+    { id: "alex", name: "Alex Marques", role: "Head of PMO", avatar: "AM" },
+    { id: "alejandro", name: "Alejandro", role: "PMO Member", avatar: "AL" },
+    { id: "luis", name: "Luis", role: "PMO Member", avatar: "LU" },
+    { id: "madhava", name: "Madhava reddy", role: "PMO Member", avatar: "MR" },
+    { id: "mario", name: "Mario", role: "PMO Member", avatar: "MA" }
 ];
 
 // ==========================================================================
