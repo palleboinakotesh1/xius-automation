@@ -6,6 +6,26 @@ import pandas as pd
 import pmo_weekly_report
 import pdfplumber
 import re
+import math
+import threading
+
+EXCEL_LOCK = threading.Lock()
+
+def sanitize_nan(val):
+    if isinstance(val, dict):
+        return {k: sanitize_nan(v) for k, v in val.items()}
+    elif isinstance(val, list):
+        return [sanitize_nan(v) for v in val]
+    try:
+        # Check if it is a pandas NA or null value
+        if pd.isna(val):
+            return None
+    except:
+        pass
+    if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+        return None
+    return val
+
 
 PORT = int(os.environ.get("PORT", 8000))
 EXCEL_PATH = "PMO_Weekly_Report_Data.xlsx"
@@ -120,44 +140,51 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                 return
 
             try:
-                # Read all sheets
-                excel_file = pd.ExcelFile(EXCEL_PATH)
-                df_projects = pd.read_excel(excel_file, sheet_name="Projects")
-                if "Approved By" not in df_projects.columns:
-                    df_projects["Approved By"] = None
-                
-                # Treat NaN in Approved By as None for JSON serialization
-                df_projects["Approved By"] = df_projects["Approved By"].astype(object).where(df_projects["Approved By"].notnull(), None)
+                with EXCEL_LOCK:
+                    # Read all sheets
+                    excel_file = pd.ExcelFile(EXCEL_PATH)
+                    df_projects = pd.read_excel(excel_file, sheet_name="Projects")
+                    if "Approved By" not in df_projects.columns:
+                        df_projects["Approved By"] = None
+                    
+                    # Ensure column is object type to avoid dtype assignment warnings
+                    df_projects["Approved By"] = df_projects["Approved By"].astype(object)
+                    df_projects["Approved By"] = df_projects["Approved By"].where(df_projects["Approved By"].notnull(), None)
 
-                data = {
-                    "projects": df_projects.to_dict(orient="records"),
-                    "achievements": pd.read_excel(excel_file, sheet_name="Achievements").to_dict(orient="records"),
-                    "risks": pd.read_excel(excel_file, sheet_name="Risks").to_dict(orient="records"),
-                    "nextsteps": pd.read_excel(excel_file, sheet_name="NextSteps").to_dict(orient="records"),
-                    "decisions": pd.read_excel(excel_file, sheet_name="Decisions").to_dict(orient="records")
-                }
-                
-                # Fetch latest approval metadata if sheet exists
-                data["latestApproval"] = None
-                if "Approvals" in excel_file.sheet_names:
-                    df_approvals = pd.read_excel(excel_file, sheet_name="Approvals")
-                    if not df_approvals.empty:
-                        last_row = df_approvals.iloc[-1].to_dict()
-                        if "Timestamp" in last_row and pd.notnull(last_row["Timestamp"]):
-                            last_row["Timestamp"] = str(last_row["Timestamp"])
-                        data["latestApproval"] = last_row
-                
-                # Format dates in NextSteps to strings for JSON safety
-                for item in data["nextsteps"]:
-                    if "Deadline" in item and pd.notnull(item["Deadline"]):
-                        if isinstance(item["Deadline"], pd.Timestamp) or hasattr(item["Deadline"], "strftime"):
-                            item["Deadline"] = item["Deadline"].strftime("%Y-%m-%d")
-                        else:
-                            item["Deadline"] = str(item["Deadline"])
-                            
+                    data = {
+                        "projects": df_projects.to_dict(orient="records"),
+                        "achievements": pd.read_excel(excel_file, sheet_name="Achievements").to_dict(orient="records"),
+                        "risks": pd.read_excel(excel_file, sheet_name="Risks").to_dict(orient="records"),
+                        "nextsteps": pd.read_excel(excel_file, sheet_name="NextSteps").to_dict(orient="records"),
+                        "decisions": pd.read_excel(excel_file, sheet_name="Decisions").to_dict(orient="records")
+                    }
+                    
+                    # Fetch latest approval metadata if sheet exists
+                    data["latestApproval"] = None
+                    if "Approvals" in excel_file.sheet_names:
+                        df_approvals = pd.read_excel(excel_file, sheet_name="Approvals")
+                        if not df_approvals.empty:
+                            last_row = df_approvals.iloc[-1].to_dict()
+                            if "Timestamp" in last_row and pd.notnull(last_row["Timestamp"]):
+                                last_row["Timestamp"] = str(last_row["Timestamp"])
+                            data["latestApproval"] = last_row
+                    
+                    # Format dates in NextSteps to strings for JSON safety
+                    for item in data["nextsteps"]:
+                        if "Deadline" in item and pd.notnull(item["Deadline"]):
+                            if isinstance(item["Deadline"], pd.Timestamp) or hasattr(item["Deadline"], "strftime"):
+                                item["Deadline"] = item["Deadline"].strftime("%Y-%m-%d")
+                            else:
+                                item["Deadline"] = str(item["Deadline"])
+                                
                 self.send_json_response(200, data)
             except Exception as e:
-                self.send_error_response(500, f"Error reading Excel data: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                if isinstance(e, PermissionError) or "Permission denied" in str(e):
+                    self.send_error_response(500, "The Excel database file is currently locked. Please close it if it is open in Microsoft Excel and try again.")
+                else:
+                    self.send_error_response(500, f"Error reading Excel data: {str(e)}")
             return
 
         elif path == "/api/plan/data":
@@ -296,40 +323,41 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                 approved_projs_list = payload.get("approvedProjects", [])
                 approved_projs_str = ", ".join(approved_projs_list) if approved_projs_list else ""
                 
-                # Check if Approvals sheet already exists
-                df_approvals = pd.DataFrame(columns=["Timestamp", "Approved By", "Approved Projects"])
-                if os.path.exists(EXCEL_PATH):
-                    try:
-                        excel_file = pd.ExcelFile(EXCEL_PATH)
-                        if "Approvals" in excel_file.sheet_names:
-                            df_approvals = pd.read_excel(excel_file, sheet_name="Approvals")
-                    except Exception as e:
-                        print(f"Error reading approvals log: {e}")
-                
-                # Create a new log row
-                from datetime import datetime
-                new_row = {
-                    "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "Approved By": approved_by,
-                    "Approved Projects": approved_projs_str
-                }
-                
-                # Append row
-                df_approvals = pd.concat([df_approvals, pd.DataFrame([new_row])], ignore_index=True)
+                with EXCEL_LOCK:
+                    # Check if Approvals sheet already exists
+                    df_approvals = pd.DataFrame(columns=["Timestamp", "Approved By", "Approved Projects"])
+                    if os.path.exists(EXCEL_PATH):
+                        try:
+                            excel_file = pd.ExcelFile(EXCEL_PATH)
+                            if "Approvals" in excel_file.sheet_names:
+                                df_approvals = pd.read_excel(excel_file, sheet_name="Approvals")
+                        except Exception as e:
+                            print(f"Error reading approvals log: {e}")
+                    
+                    # Create a new log row
+                    from datetime import datetime
+                    new_row = {
+                        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "Approved By": approved_by,
+                        "Approved Projects": approved_projs_str
+                    }
+                    
+                    # Append row
+                    df_approvals = pd.concat([df_approvals, pd.DataFrame([new_row])], ignore_index=True)
 
-                # Write to Excel sheets
-                with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl") as writer:
-                    df_projects.to_excel(writer, sheet_name="Projects", index=False)
-                    df_achievements.to_excel(writer, sheet_name="Achievements", index=False)
-                    df_risks.to_excel(writer, sheet_name="Risks", index=False)
-                    df_nextsteps.to_excel(writer, sheet_name="NextSteps", index=False)
-                    df_decisions.to_excel(writer, sheet_name="Decisions", index=False)
-                    df_approvals.to_excel(writer, sheet_name="Approvals", index=False)
+                    # Write to Excel sheets
+                    with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl") as writer:
+                        df_projects.to_excel(writer, sheet_name="Projects", index=False)
+                        df_achievements.to_excel(writer, sheet_name="Achievements", index=False)
+                        df_risks.to_excel(writer, sheet_name="Risks", index=False)
+                        df_nextsteps.to_excel(writer, sheet_name="NextSteps", index=False)
+                        df_decisions.to_excel(writer, sheet_name="Decisions", index=False)
+                        df_approvals.to_excel(writer, sheet_name="Approvals", index=False)
 
-                print(f"Excel data updated (Approved By: {approved_by}). Running report generation...")
+                    print(f"Excel data updated (Approved By: {approved_by}). Running report generation...")
 
-                # Regenerate Word report
-                pmo_weekly_report.run_report_generation(approved_by=approved_by)
+                    # Regenerate Word report
+                    pmo_weekly_report.run_report_generation(approved_by=approved_by)
 
                 # Send success response
                 response_data = {
@@ -342,7 +370,10 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                 import traceback
                 print(f"Error during submit: {e}")
                 traceback.print_exc()
-                self.send_error_response(500, f"Error processing submission: {str(e)}")
+                if isinstance(e, PermissionError) or "Permission denied" in str(e):
+                    self.send_error_response(500, "The Excel database file is currently locked. Please close it if it is open in Microsoft Excel and try again.")
+                else:
+                    self.send_error_response(500, f"Error processing submission: {str(e)}")
             return
 
         elif path == "/api/plan/upload":
@@ -438,30 +469,32 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                     self.send_error_response(404, f"Excel file {EXCEL_PATH} not found.")
                     return
 
-                # Read all sheets to preserve them
-                excel_file = pd.ExcelFile(EXCEL_PATH)
-                sheets = {}
-                for sheet in excel_file.sheet_names:
-                    sheets[sheet] = pd.read_excel(excel_file, sheet_name=sheet)
+                with EXCEL_LOCK:
+                    # Read all sheets to preserve them
+                    excel_file = pd.ExcelFile(EXCEL_PATH)
+                    sheets = {}
+                    for sheet in excel_file.sheet_names:
+                        sheets[sheet] = pd.read_excel(excel_file, sheet_name=sheet)
 
-                df_projects = sheets["Projects"]
-                
-                # Check if "Approved By" column exists, if not add it
-                if "Approved By" not in df_projects.columns:
-                    df_projects["Approved By"] = None
+                    df_projects = sheets["Projects"]
+                    
+                    # Check if "Approved By" column exists, if not add it
+                    if "Approved By" not in df_projects.columns:
+                        df_projects["Approved By"] = None
+                    df_projects["Approved By"] = df_projects["Approved By"].astype(object)
 
-                # Find project and update
-                idx_list = df_projects.index[df_projects["Project"] == project_name].tolist()
-                if not idx_list:
-                    self.send_error_response(404, f"Project '{project_name}' not found.")
-                    return
-                
-                df_projects.at[idx_list[0], "Approved By"] = approved_by
+                    # Find project and update
+                    idx_list = df_projects.index[df_projects["Project"] == project_name].tolist()
+                    if not idx_list:
+                        self.send_error_response(404, f"Project '{project_name}' not found.")
+                        return
+                    
+                    df_projects.at[idx_list[0], "Approved By"] = approved_by
 
-                # Write all sheets back
-                with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl") as writer:
-                    for sheet_name, df_sheet in sheets.items():
-                        df_sheet.to_excel(writer, sheet_name=sheet_name, index=False)
+                    # Write all sheets back
+                    with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl") as writer:
+                        for sheet_name, df_sheet in sheets.items():
+                            df_sheet.to_excel(writer, sheet_name=sheet_name, index=False)
 
                 self.send_json_response(200, {
                     "status": "success",
@@ -470,7 +503,10 @@ class PMORequestHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 import traceback
                 traceback.print_exc()
-                self.send_error_response(500, f"Error processing approval: {str(e)}")
+                if isinstance(e, PermissionError) or "Permission denied" in str(e):
+                    self.send_error_response(500, "The Excel database file is currently locked. Please close it if it is open in Microsoft Excel and try again.")
+                else:
+                    self.send_error_response(500, f"Error processing approval: {str(e)}")
             return
 
         elif path == "/api/approve/bulk":
@@ -489,26 +525,28 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                     self.send_error_response(404, f"Excel file {EXCEL_PATH} not found.")
                     return
 
-                # Read all sheets
-                excel_file = pd.ExcelFile(EXCEL_PATH)
-                sheets = {}
-                for sheet in excel_file.sheet_names:
-                    sheets[sheet] = pd.read_excel(excel_file, sheet_name=sheet)
+                with EXCEL_LOCK:
+                    # Read all sheets
+                    excel_file = pd.ExcelFile(EXCEL_PATH)
+                    sheets = {}
+                    for sheet in excel_file.sheet_names:
+                        sheets[sheet] = pd.read_excel(excel_file, sheet_name=sheet)
 
-                df_projects = sheets["Projects"]
-                
-                if "Approved By" not in df_projects.columns:
-                    df_projects["Approved By"] = None
+                    df_projects = sheets["Projects"]
+                    
+                    if "Approved By" not in df_projects.columns:
+                        df_projects["Approved By"] = None
+                    df_projects["Approved By"] = df_projects["Approved By"].astype(object)
 
-                for proj_name, approved_by in approvals.items():
-                    idx_list = df_projects.index[df_projects["Project"] == proj_name].tolist()
-                    if idx_list:
-                        df_projects.at[idx_list[0], "Approved By"] = approved_by
+                    for proj_name, approved_by in approvals.items():
+                        idx_list = df_projects.index[df_projects["Project"] == proj_name].tolist()
+                        if idx_list:
+                            df_projects.at[idx_list[0], "Approved By"] = approved_by
 
-                # Write all sheets back
-                with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl") as writer:
-                    for sheet_name, df_sheet in sheets.items():
-                        df_sheet.to_excel(writer, sheet_name=sheet_name, index=False)
+                    # Write all sheets back
+                    with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl") as writer:
+                        for sheet_name, df_sheet in sheets.items():
+                            df_sheet.to_excel(writer, sheet_name=sheet_name, index=False)
 
                 self.send_json_response(200, {
                     "status": "success",
@@ -517,7 +555,10 @@ class PMORequestHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 import traceback
                 traceback.print_exc()
-                self.send_error_response(500, f"Error in bulk approval: {str(e)}")
+                if isinstance(e, PermissionError) or "Permission denied" in str(e):
+                    self.send_error_response(500, "The Excel database file is currently locked. Please close it if it is open in Microsoft Excel and try again.")
+                else:
+                    self.send_error_response(500, f"Error in bulk approval: {str(e)}")
             return
 
         elif path == "/api/approve/reset":
@@ -526,19 +567,20 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                     self.send_error_response(404, f"Excel file {EXCEL_PATH} not found.")
                     return
 
-                # Read all sheets
-                excel_file = pd.ExcelFile(EXCEL_PATH)
-                sheets = {}
-                for sheet in excel_file.sheet_names:
-                    sheets[sheet] = pd.read_excel(excel_file, sheet_name=sheet)
+                with EXCEL_LOCK:
+                    # Read all sheets
+                    excel_file = pd.ExcelFile(EXCEL_PATH)
+                    sheets = {}
+                    for sheet in excel_file.sheet_names:
+                        sheets[sheet] = pd.read_excel(excel_file, sheet_name=sheet)
 
-                df_projects = sheets["Projects"]
-                df_projects["Approved By"] = None
+                    df_projects = sheets["Projects"]
+                    df_projects["Approved By"] = None
 
-                # Write all sheets back
-                with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl") as writer:
-                    for sheet_name, df_sheet in sheets.items():
-                        df_sheet.to_excel(writer, sheet_name=sheet_name, index=False)
+                    # Write all sheets back
+                    with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl") as writer:
+                        for sheet_name, df_sheet in sheets.items():
+                            df_sheet.to_excel(writer, sheet_name=sheet_name, index=False)
 
                 self.send_json_response(200, {
                     "status": "success",
@@ -547,13 +589,23 @@ class PMORequestHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 import traceback
                 traceback.print_exc()
-                self.send_error_response(500, f"Error resetting approvals: {str(e)}")
+                if isinstance(e, PermissionError) or "Permission denied" in str(e):
+                    self.send_error_response(500, "The Excel database file is currently locked. Please close it if it is open in Microsoft Excel and try again.")
+                else:
+                    self.send_error_response(500, f"Error resetting approvals: {str(e)}")
             return
 
         self.send_error_response(404, "Endpoint not found.")
 
     def send_json_response(self, status_code, data):
-        response_body = json.dumps(data).encode('utf-8')
+        try:
+            sanitized = sanitize_nan(data)
+            response_body = json.dumps(sanitized, allow_nan=False).encode('utf-8')
+        except ValueError as ve:
+            print(f"JSON serialization error (NaN/Inf detected): {ve}")
+            self.send_error_response(500, "Internal server error: Invalid float values (NaN/Infinity) encountered.")
+            return
+
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -562,7 +614,12 @@ class PMORequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(response_body)
 
     def send_error_response(self, status_code, message):
-        response_body = json.dumps({"status": "error", "message": message}).encode('utf-8')
+        try:
+            sanitized = sanitize_nan({"status": "error", "message": message})
+            response_body = json.dumps(sanitized, allow_nan=False).encode('utf-8')
+        except ValueError as ve:
+            print(f"JSON serialization error in error response: {ve}")
+            response_body = b'{"status": "error", "message": "Internal server error"}'
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(response_body)))
