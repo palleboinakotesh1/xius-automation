@@ -15,7 +15,9 @@ let state = {
     collapsedTaskIds: new Set(),
     wbsEditMode: false,
     activeProfile: null,
-    latestApproval: null
+    latestApproval: null,
+    scopes: [],
+    selectedScopeProjectName: null
 };
 
 const DUMMY_PROFILES = [
@@ -156,6 +158,10 @@ function setupNavigation() {
                 pageTitle.innerText = "Project Plan Timeline";
                 pageSubtitle.innerText = "Interactive Work Breakdown Structure and task roadmaps";
                 renderProjectPlanView();
+            } else if (targetTab === 'project-scope') {
+                pageTitle.innerText = "Project Scope";
+                pageSubtitle.innerText = "Scope definition and project parameters register";
+                renderProjectScopeView();
             }
             // Trigger icon rendering for new tab layouts
             lucide.createIcons();
@@ -235,6 +241,7 @@ async function fetchData() {
         state.risks = json.risks || [];
         state.nextsteps = json.nextsteps || [];
         state.decisions = json.decisions || [];
+        state.scopes = json.scopes || [];
         state.latestApproval = json.latestApproval || null;
 
         // Initialize approval checkboxes based on server-side approvals
@@ -248,6 +255,7 @@ async function fetchData() {
 
         populateDashboardTable();
         populateProjectDropdown();
+        populateScopeProjectDropdown();
         updateDashboardCards();
         renderApprovalStatusBanner();
         
@@ -273,6 +281,7 @@ async function silentFetchData() {
         state.risks = json.risks || [];
         state.nextsteps = json.nextsteps || [];
         state.decisions = json.decisions || [];
+        state.scopes = json.scopes || [];
         state.latestApproval = json.latestApproval || null;
 
         // Initialize approval checkboxes based on server-side approvals
@@ -286,6 +295,7 @@ async function silentFetchData() {
 
         populateDashboardTable();
         populateProjectDropdown();
+        populateScopeProjectDropdown();
         updateDashboardCards();
         renderApprovalStatusBanner();
         
@@ -314,7 +324,8 @@ async function submitConsolidatedData() {
                 achievements: state.achievements,
                 risks: state.risks,
                 nextsteps: state.nextsteps,
-                decisions: state.decisions
+                decisions: state.decisions,
+                scopes: state.scopes
             })
         });
 
@@ -724,6 +735,23 @@ function setupFormListeners() {
             saveProjectDataLocally();
         }
     });
+
+    // Project Scope listeners
+    const scopeSelect = document.getElementById("scope-project-select");
+    if (scopeSelect) {
+        scopeSelect.addEventListener("change", (e) => {
+            state.selectedScopeProjectName = e.target.value;
+            renderProjectScopeView();
+        });
+    }
+
+    const scopeForm = document.getElementById("scope-form");
+    if (scopeForm) {
+        scopeForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            saveProjectScopeData();
+        });
+    }
 }
 
 function validateForm() {
@@ -2334,4 +2362,138 @@ function renderApprovalStatusBanner() {
         wrapper.innerHTML = "";
     }
     lucide.createIcons();
+}
+
+function populateScopeProjectDropdown() {
+    const select = document.getElementById("scope-project-select");
+    if (!select) return;
+    
+    // Save current selection if any
+    const currentVal = select.value || state.selectedScopeProjectName;
+    
+    select.innerHTML = '<option value="" disabled selected>-- Choose a Project --</option>';
+
+    state.projects.forEach(p => {
+        const opt = document.createElement("option");
+        opt.value = p.Project;
+        opt.innerText = p.Project;
+        select.appendChild(opt);
+    });
+
+    if (currentVal && state.projects.some(p => p.Project === currentVal)) {
+        select.value = currentVal;
+        state.selectedScopeProjectName = currentVal;
+    } else {
+        select.value = "";
+        state.selectedScopeProjectName = null;
+    }
+}
+
+function renderProjectScopeView() {
+    populateScopeProjectDropdown();
+
+    const select = document.getElementById("scope-project-select");
+    const form = document.getElementById("scope-form");
+    const emptyState = document.getElementById("scope-no-project-selected");
+
+    if (!select || !form || !emptyState) return;
+
+    if (state.selectedScopeProjectName) {
+        select.value = state.selectedScopeProjectName;
+        form.classList.remove("hidden");
+        emptyState.classList.add("hidden");
+        loadProjectScopeIntoForm(state.selectedScopeProjectName);
+    } else {
+        select.value = "";
+        form.classList.add("hidden");
+        emptyState.classList.remove("hidden");
+    }
+    lucide.createIcons();
+}
+
+function loadProjectScopeIntoForm(projName) {
+    let scope = state.scopes.find(s => s.Project === projName);
+    if (!scope) {
+        scope = {
+            "Project": projName,
+            "Pre-sales Document": "",
+            "Pre-sales Scope Prepare": "",
+            "Pre-sales Project Time Plan": "",
+            "Risk Register Party Expected": "",
+            "Customer Presentation Kick Off": "",
+            "Customer Presentation Weekly": "",
+            "Customer Presentation Monthly": "",
+            "Internal Reports Presentation Format": "",
+            "Project Progress": ""
+        };
+    }
+
+    document.getElementById("scope-input-presales-doc").value = scope["Pre-sales Document"] || "";
+    document.getElementById("scope-input-presales-scope").value = scope["Pre-sales Scope Prepare"] || "";
+    document.getElementById("scope-input-presales-time").value = scope["Pre-sales Project Time Plan"] || "";
+    document.getElementById("scope-input-risk-party").value = scope["Risk Register Party Expected"] || "";
+    document.getElementById("scope-input-cust-kickoff").value = scope["Customer Presentation Kick Off"] || "";
+    document.getElementById("scope-input-cust-weekly").value = scope["Customer Presentation Weekly"] || "";
+    document.getElementById("scope-input-cust-monthly").value = scope["Customer Presentation Monthly"] || "";
+    document.getElementById("scope-input-internal-format").value = scope["Internal Reports Presentation Format"] || "";
+    document.getElementById("scope-input-progress").value = scope["Project Progress"] || "";
+}
+
+async function saveProjectScopeData() {
+    const projName = state.selectedScopeProjectName;
+    if (!projName) return;
+
+    const updatedScope = {
+        "Project": projName,
+        "Pre-sales Document": document.getElementById("scope-input-presales-doc").value.trim(),
+        "Pre-sales Scope Prepare": document.getElementById("scope-input-presales-scope").value.trim(),
+        "Pre-sales Project Time Plan": document.getElementById("scope-input-presales-time").value.trim(),
+        "Risk Register Party Expected": document.getElementById("scope-input-risk-party").value.trim(),
+        "Customer Presentation Kick Off": document.getElementById("scope-input-cust-kickoff").value.trim(),
+        "Customer Presentation Weekly": document.getElementById("scope-input-cust-weekly").value.trim(),
+        "Customer Presentation Monthly": document.getElementById("scope-input-cust-monthly").value.trim(),
+        "Internal Reports Presentation Format": document.getElementById("scope-input-internal-format").value.trim(),
+        "Project Progress": document.getElementById("scope-input-progress").value.trim()
+    };
+
+    // Update state.scopes in place
+    state.scopes = state.scopes.filter(s => s.Project !== projName);
+    state.scopes.push(updatedScope);
+
+    const saveBtn = document.getElementById("btn-save-scope");
+    const originalHTML = saveBtn.innerHTML;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = "<i data-lucide='loader' class='icon anim-spin'></i> Saving...";
+    lucide.createIcons();
+
+    try {
+        const response = await fetch("/api/submit", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                projects: state.projects,
+                achievements: state.achievements,
+                risks: state.risks,
+                nextsteps: state.nextsteps,
+                decisions: state.decisions,
+                scopes: state.scopes
+            })
+        });
+
+        if (!response.ok) throw new Error("Server error while saving project scope");
+        const res = await response.json();
+        showToast(`Project scope for "${projName}" successfully saved to database.`, "success");
+        
+        // Fetch fresh data
+        await fetchData();
+    } catch (e) {
+        console.error(e);
+        showToast("Failed to save project scope: " + e.message, "error");
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalHTML;
+        lucide.createIcons();
+    }
 }

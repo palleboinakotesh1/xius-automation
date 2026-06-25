@@ -156,8 +156,11 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                         "achievements": pd.read_excel(excel_file, sheet_name="Achievements").to_dict(orient="records"),
                         "risks": pd.read_excel(excel_file, sheet_name="Risks").to_dict(orient="records"),
                         "nextsteps": pd.read_excel(excel_file, sheet_name="NextSteps").to_dict(orient="records"),
-                        "decisions": pd.read_excel(excel_file, sheet_name="Decisions").to_dict(orient="records")
+                        "decisions": pd.read_excel(excel_file, sheet_name="Decisions").to_dict(orient="records"),
+                        "scopes": []
                     }
+                    if "ProjectScope" in excel_file.sheet_names:
+                        data["scopes"] = pd.read_excel(excel_file, sheet_name="ProjectScope").to_dict(orient="records")
                     
                     # Fetch latest approval metadata if sheet exists
                     data["latestApproval"] = None
@@ -282,6 +285,21 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                 df_nextsteps = pd.DataFrame(payload["nextsteps"])
                 df_decisions = pd.DataFrame(payload["decisions"])
 
+                # ProjectScope
+                df_scopes = None
+                if "scopes" in payload:
+                    df_scopes = pd.DataFrame(payload["scopes"])
+                elif os.path.exists(EXCEL_PATH):
+                    try:
+                        excel_file = pd.ExcelFile(EXCEL_PATH)
+                        if "ProjectScope" in excel_file.sheet_names:
+                            df_scopes = pd.read_excel(excel_file, sheet_name="ProjectScope")
+                    except Exception as e:
+                        print(f"Error reading existing ProjectScope: {e}")
+                
+                if df_scopes is None:
+                    df_scopes = pd.DataFrame()
+
                 # Ensure columns match expected schemas precisely
                 # Projects
                 p_cols = ["Project", "Manager", "Planned %", "Actual %", "Budget", "Actual Cost", "Delay Days", "Risk Score", "Approved By"]
@@ -318,6 +336,15 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                         df_decisions[col] = None
                 df_decisions = df_decisions[d_cols]
 
+                # Scopes
+                s_cols = ["Project", "Pre-sales Document", "Pre-sales Scope Prepare", "Pre-sales Project Time Plan", 
+                          "Risk Register Party Expected", "Customer Presentation Kick Off", "Customer Presentation Weekly", 
+                          "Customer Presentation Monthly", "Internal Reports Presentation Format", "Project Progress"]
+                for col in s_cols:
+                    if col not in df_scopes.columns:
+                        df_scopes[col] = None
+                df_scopes = df_scopes[s_cols]
+
                 # Logging approval history
                 approved_by = payload.get("approvedBy", "Project Lead")
                 approved_projs_list = payload.get("approvedProjects", [])
@@ -352,6 +379,7 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                         df_risks.to_excel(writer, sheet_name="Risks", index=False)
                         df_nextsteps.to_excel(writer, sheet_name="NextSteps", index=False)
                         df_decisions.to_excel(writer, sheet_name="Decisions", index=False)
+                        df_scopes.to_excel(writer, sheet_name="ProjectScope", index=False)
                         df_approvals.to_excel(writer, sheet_name="Approvals", index=False)
 
                     print(f"Excel data updated (Approved By: {approved_by}). Running report generation...")
