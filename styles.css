@@ -249,7 +249,7 @@ body {
     color: #fff;
     font-weight: 600;
     font-size: 0.9rem;
-    z-index: 100;
+    z-index: 20000;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     transition: transform 0.3s ease, opacity 0.3s ease;
 }
