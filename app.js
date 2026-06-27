@@ -1,13 +1,13 @@
 // ==========================================================================
 // SUPABASE CLIENT CONFIGURATION & STATE
 // ==========================================================================
-const SUPABASE_URL = "https://xczrfhxlzfrytbtpidhn.supabase.co";
+const SUPABASE_URL = "https://xczrfhxlzfrytbtpidhn.supabaseClient.co";
 const SUPABASE_KEY = "sb_publishable_wngiEluCpegeAyfehAkQ0Q_0P6Fmklw";
-const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+const supabaseClient = window.supabase ? window.supabaseClient.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 async function authenticatedFetch(url, options = {}) {
-    if (!supabase) return fetch(url, options);
-    const sessionRes = await supabase.auth.getSession();
+    if (!supabaseClient) return fetch(url, options);
+    const sessionRes = await supabaseClient.auth.getSession();
     const session = sessionRes.data.session;
     const token = session ? session.access_token : "";
     
@@ -84,8 +84,8 @@ function mapUserSessionToProfile(user) {
 // ==========================================================================
 document.addEventListener("DOMContentLoaded", () => {
     // 1. Setup Auth state change listener
-    if (supabase) {
-        supabase.auth.onAuthStateChange((event, session) => {
+    if (supabaseClient) {
+        supabaseClient.auth.onAuthStateChange((event, session) => {
             if (session) {
                 document.getElementById("login-overlay").classList.add("hidden");
                 mapUserSessionToProfile(session.user);
@@ -117,7 +117,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 lucide.createIcons();
                 
                 try {
-                    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
                     if (error) throw error;
                     showToast("Access granted. Welcome back!", "success");
                 } catch (err) {
@@ -135,7 +135,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const logoutBtn = document.getElementById("btn-logout");
         if (logoutBtn) {
             logoutBtn.addEventListener("click", async () => {
-                const { error } = await supabase.auth.signOut();
+                const { error } = await supabaseClient.auth.signOut();
                 if (error) showToast("Sign out failed: " + error.message, "error");
                 else showToast("Logged out successfully.", "success");
             });
