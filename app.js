@@ -1,6 +1,23 @@
 // ==========================================================================
-// PORTAL CLIENT STATE MANAGEMENT
+// SUPABASE CLIENT CONFIGURATION & STATE
 // ==========================================================================
+const SUPABASE_URL = "https://xczrfhxlzfrytbtpidhn.supabase.co";
+const SUPABASE_KEY = "sb_publishable_wngiEluCpegeAyfehAkQ0Q_0P6Fmklw";
+const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+async function authenticatedFetch(url, options = {}) {
+    if (!supabase) return fetch(url, options);
+    const sessionRes = await supabase.auth.getSession();
+    const session = sessionRes.data.session;
+    const token = session ? session.access_token : "";
+    
+    options.headers = options.headers || {};
+    if (token) {
+        options.headers["Authorization"] = `Bearer ${token}`;
+    }
+    return fetch(url, options);
+}
+
 let state = {
     projects: [],
     achievements: [],
@@ -28,13 +45,105 @@ const DUMMY_PROFILES = [
     { id: "mario", name: "Mario", role: "PMO Member", avatar: "MA" }
 ];
 
+function mapUserSessionToProfile(user) {
+    if (!user) {
+        state.activeProfile = null;
+        return;
+    }
+    
+    const email = user.email.toLowerCase();
+    const prefix = email.split('@')[0];
+    
+    const matched = DUMMY_PROFILES.find(p => p.id === prefix);
+    if (matched) {
+        state.activeProfile = matched;
+    } else {
+        const friendlyName = prefix.split('.').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        const avatar = prefix.split('.').map(w => w.charAt(0).toUpperCase()).join('').substring(0, 2);
+        
+        state.activeProfile = {
+            id: prefix,
+            name: friendlyName,
+            role: "PMO Member",
+            avatar: avatar || "PM"
+        };
+    }
+    
+    // Update top nav avatar
+    const nameEl = document.getElementById("active-profile-name");
+    const roleEl = document.getElementById("active-profile-role");
+    const avatarEl = document.getElementById("active-profile-avatar");
+    
+    if (nameEl) nameEl.innerText = state.activeProfile.name;
+    if (roleEl) roleEl.innerText = state.activeProfile.role;
+    if (avatarEl) avatarEl.innerText = state.activeProfile.avatar;
+}
+
 // ==========================================================================
 // APPLICATION INITIALIZATION & NAV LISTENERS
 // ==========================================================================
 document.addEventListener("DOMContentLoaded", () => {
+    // 1. Setup Auth state change listener
+    if (supabase) {
+        supabase.auth.onAuthStateChange((event, session) => {
+            if (session) {
+                document.getElementById("login-overlay").classList.add("hidden");
+                mapUserSessionToProfile(session.user);
+                fetchData();
+                fetchPlanData();
+            } else {
+                document.getElementById("login-overlay").classList.remove("hidden");
+                mapUserSessionToProfile(null);
+            }
+        });
+        
+        // 2. Bind login form submit
+        const loginForm = document.getElementById("login-form");
+        if (loginForm) {
+            loginForm.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const email = document.getElementById("login-email").value.trim();
+                const password = document.getElementById("login-password").value;
+                const submitBtn = document.getElementById("btn-login-submit");
+                
+                if (!email || !password) return;
+                
+                const originalHTML = submitBtn.innerHTML;
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = "<i data-lucide='loader' class='icon anim-spin'></i> Authenticating...";
+                lucide.createIcons();
+                
+                try {
+                    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                    if (error) throw error;
+                    showToast("Access granted. Welcome back!", "success");
+                } catch (err) {
+                    console.error(err);
+                    showToast(err.message || "Invalid credentials.", "error");
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalHTML;
+                    lucide.createIcons();
+                }
+            });
+        }
+        
+        // 3. Bind logout button
+        const logoutBtn = document.getElementById("btn-logout");
+        if (logoutBtn) {
+            logoutBtn.addEventListener("click", async () => {
+                const { error } = await supabase.auth.signOut();
+                if (error) showToast("Sign out failed: " + error.message, "error");
+                else showToast("Logged out successfully.", "success");
+            });
+        }
+    } else {
+        document.getElementById("login-overlay").classList.add("hidden");
+        fetchData();
+        fetchPlanData();
+    }
+    
     initProfiles();
-    fetchData();
-    fetchPlanData();
     setupNavigation();
     setupFormListeners();
     setupModalListeners();
@@ -233,7 +342,7 @@ function switchFormTab(tabName) {
 
 async function fetchData() {
     try {
-        const response = await fetch("/api/data");
+        const response = await authenticatedFetch("/api/data");
         if (!response.ok) throw new Error("Failed to fetch data from local API");
         const json = await response.json();
         
@@ -273,7 +382,7 @@ async function fetchData() {
 
 async function silentFetchData() {
     try {
-        const response = await fetch("/api/data");
+        const response = await authenticatedFetch("/api/data");
         if (!response.ok) throw new Error("Failed to fetch data silently");
         const json = await response.json();
         
@@ -315,7 +424,7 @@ async function submitConsolidatedData() {
     lucide.createIcons();
 
     try {
-        const response = await fetch("/api/submit", {
+        const response = await authenticatedFetch("/api/submit", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -638,7 +747,7 @@ async function executeProjectDeletion(projectName) {
         const updatedNextsteps = state.nextsteps.filter(n => n.Project !== projectName);
         const updatedDecisions = state.decisions.filter(d => d.Project !== projectName);
 
-        const response = await fetch('/api/submit', {
+        const response = await authenticatedFetch('/api/submit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1240,7 +1349,7 @@ function setupWorkflowListeners() {
 
     document.getElementById('btn-new-cycle').addEventListener('click', async () => {
         try {
-            await fetch('/api/approve/reset', { method: 'POST' });
+            await authenticatedFetch('/api/approve/reset', { method: 'POST' });
         } catch (e) {
             console.error("Failed to reset approvals on server:", e);
         }
@@ -1267,7 +1376,7 @@ function setupWorkflowListeners() {
         });
         renderChecklistCards();
         try {
-            await fetch('/api/approve/bulk', {
+            await authenticatedFetch('/api/approve/bulk', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ approvals })
@@ -1285,7 +1394,7 @@ function setupWorkflowListeners() {
         });
         renderChecklistCards();
         try {
-            await fetch('/api/approve/bulk', {
+            await authenticatedFetch('/api/approve/bulk', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ approvals })
@@ -1376,7 +1485,7 @@ function renderChecklistCards() {
 
             try {
                 const approvedBy = checked ? `${state.activeProfile.name} (${state.activeProfile.role})` : null;
-                const response = await fetch('/api/approve', {
+                const response = await authenticatedFetch('/api/approve', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1670,7 +1779,7 @@ async function executeCompilation(approvedBy) {
     lucide.createIcons();
 
     try {
-        const response = await fetch('/api/submit', {
+        const response = await authenticatedFetch('/api/submit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1773,7 +1882,7 @@ function setupModalListeners() {
 
         try {
             const updatedProjects = [...state.projects, newProj];
-            const response = await fetch('/api/submit', {
+            const response = await authenticatedFetch('/api/submit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1862,7 +1971,7 @@ function showToast(message, type = "info") {
 
 async function fetchPlanData() {
     try {
-        const response = await fetch("/api/plan/data");
+        const response = await authenticatedFetch("/api/plan/data");
         if (!response.ok) throw new Error("Failed to fetch plan data");
         const data = await response.json();
         if (data && data.projectName && data.tasks && data.tasks.length > 0) {
@@ -1968,7 +2077,7 @@ function setupProjectPlanListeners() {
             const formData = new FormData();
             formData.append("file", selectedFile);
 
-            const response = await fetch("/api/plan/upload", {
+            const response = await authenticatedFetch(/api/plan/upload", {
                 method: "POST",
                 body: formData
             });
@@ -2024,7 +2133,7 @@ function setupProjectPlanListeners() {
             }
             
             try {
-                const response = await fetch("/api/plan/delete", { method: "POST" });
+                const response = await authenticatedFetch("/api/plan/delete", { method: "POST" });
                 if (!response.ok) throw new Error("Delete request failed");
                 
                 showToast("Project plan deleted successfully.", "success");
@@ -2068,7 +2177,7 @@ function setupProjectPlanListeners() {
             lucide.createIcons();
 
             try {
-                const response = await fetch("/api/plan/save", {
+                const response = await authenticatedFetch("/api/plan/save", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json"
@@ -2699,7 +2808,7 @@ async function executeUploadRequest(file, projName, docType) {
     formData.append("doc_type", docType);
 
     try {
-        const response = await fetch("/api/scope/upload", {
+        const response = await authenticatedFetch(/api/scope/upload", {
             method: "POST",
             body: formData
         });
@@ -2777,7 +2886,7 @@ async function saveProjectScopeData() {
     lucide.createIcons();
 
     try {
-        const response = await fetch("/api/submit", {
+        const response = await authenticatedFetch("/api/submit", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"

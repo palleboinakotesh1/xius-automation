@@ -8,6 +8,11 @@ import pdfplumber
 import re
 import math
 import threading
+from supabase import create_client
+
+SUPABASE_URL = "https://xczrfhxlzfrytbtpidhn.supabase.co"
+SUPABASE_KEY = "sb_publishable_wngiEluCpegeAyfehAkQ0Q_0P6Fmklw"
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 EXCEL_LOCK = threading.Lock()
 
@@ -285,68 +290,152 @@ class PMORequestHandler(BaseHTTPRequestHandler):
         # Silence default logging to keep terminal output clean
         pass
 
+    def check_auth(self):
+        auth_header = self.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            self.send_error_response(401, "Missing or invalid authorization token.")
+            return False
+        token = auth_header.split("Bearer ")[1].strip()
+        try:
+            res = supabase.auth.get_user(token)
+            if res and res.user:
+                return True
+        except Exception as e:
+            print(f"Token validation failed: {e}")
+        self.send_error_response(401, "Session expired or invalid token.")
+        return False
+
     def do_GET(self):
         parsed_path = urllib.parse.urlparse(self.path)
         path = parsed_path.path
 
         # Route: API Data Retrieval
         if path == "/api/data":
-            if not os.path.exists(EXCEL_PATH):
-                self.send_error_response(404, f"Excel file {EXCEL_PATH} not found.")
+            if not self.check_auth():
                 return
 
             try:
-                with EXCEL_LOCK:
-                    # Read all sheets
-                    excel_file = pd.ExcelFile(EXCEL_PATH)
-                    df_projects = pd.read_excel(excel_file, sheet_name="Projects")
-                    if "Approved By" not in df_projects.columns:
-                        df_projects["Approved By"] = None
-                    
-                    # Ensure column is object type to avoid dtype assignment warnings
-                    df_projects["Approved By"] = df_projects["Approved By"].astype(object)
-                    df_projects["Approved By"] = df_projects["Approved By"].where(df_projects["Approved By"].notnull(), None)
+                # Query projects
+                proj_res = supabase.table("projects").select("*").execute()
+                projects = []
+                for p in (proj_res.data or []):
+                    projects.append({
+                        "Project": p.get("project"),
+                        "Manager": p.get("manager"),
+                        "Planned %": p.get("planned_pct"),
+                        "Actual %": p.get("actual_pct"),
+                        "Budget": p.get("budget"),
+                        "Actual Cost": p.get("actual_cost"),
+                        "Delay Days": p.get("delay_days"),
+                        "Risk Score": p.get("risk_score"),
+                        "Approved By": p.get("approved_by")
+                    })
 
-                    data = {
-                        "projects": df_projects.to_dict(orient="records"),
-                        "achievements": pd.read_excel(excel_file, sheet_name="Achievements").to_dict(orient="records"),
-                        "risks": pd.read_excel(excel_file, sheet_name="Risks").to_dict(orient="records"),
-                        "nextsteps": pd.read_excel(excel_file, sheet_name="NextSteps").to_dict(orient="records"),
-                        "decisions": pd.read_excel(excel_file, sheet_name="Decisions").to_dict(orient="records"),
-                        "scopes": []
+                # Query achievements
+                ach_res = supabase.table("achievements").select("*").execute()
+                achievements = []
+                for a in (ach_res.data or []):
+                    achievements.append({
+                        "Project": a.get("project"),
+                        "Achievement": a.get("achievement")
+                    })
+
+                # Query risks
+                risk_res = supabase.table("risks").select("*").execute()
+                risks = []
+                for r in (risk_res.data or []):
+                    risks.append({
+                        "Project": r.get("project"),
+                        "Risk Description": r.get("risk_description"),
+                        "Probability": r.get("probability"),
+                        "Impact": r.get("impact"),
+                        "Mitigation": r.get("mitigation")
+                    })
+
+                # Query nextsteps
+                ns_res = supabase.table("next_steps").select("*").execute()
+                nextsteps = []
+                for n in (ns_res.data or []):
+                    nextsteps.append({
+                        "Project": n.get("project"),
+                        "Task": n.get("task"),
+                        "Owner": n.get("owner"),
+                        "Deadline": n.get("deadline")
+                    })
+
+                # Query decisions
+                dec_res = supabase.table("decisions").select("*").execute()
+                decisions = []
+                for d in (dec_res.data or []):
+                    decisions.append({
+                        "Project": d.get("project"),
+                        "Decision Required": d.get("decision_required"),
+                        "Context": d.get("context"),
+                        "Options": d.get("options"),
+                        "Recommendation": d.get("recommendation")
+                    })
+
+                # Query scopes
+                scope_res = supabase.table("project_scopes").select("*").execute()
+                scopes = []
+                for s in (scope_res.data or []):
+                    scopes.append({
+                        "Project": s.get("project"),
+                        "Pre-sales Document": s.get("presales_document"),
+                        "Components": s.get("components"),
+                        "Scope Prepare": s.get("scope_prepare"),
+                        "Project Time Plan": s.get("project_time_plan"),
+                        "Agreed Document": s.get("agreed_document"),
+                        "Project Plan": s.get("project_plan"),
+                        "Scope In": s.get("scope_in"),
+                        "Scope Out": s.get("scope_out"),
+                        "Customer Presentation Type": s.get("customer_presentation_type"),
+                        "Kick Off": s.get("kick_off"),
+                        "Weekly": s.get("weekly"),
+                        "Monthly": s.get("monthly"),
+                        "Milestone Progress": s.get("milestone_progress"),
+                        "Project Status": s.get("project_status"),
+                        "Monthly Status": s.get("monthly_status"),
+                        "Executive Presentation": s.get("executive_presentation"),
+                        "Risk Register Party Expected": s.get("risk_register_party_expected")
+                    })
+
+                # Query latestApproval
+                app_res = supabase.table("approvals").select("*").order("timestamp", desc=True).limit(1).execute()
+                latest_approval = None
+                if app_res.data and len(app_res.data) > 0:
+                    app = app_res.data[0]
+                    latest_approval = {
+                        "Timestamp": app.get("timestamp"),
+                        "Approved By": app.get("approved_by"),
+                        "Approved Projects": app.get("approved_projects")
                     }
-                    if "ProjectScope" in excel_file.sheet_names:
-                        data["scopes"] = pd.read_excel(excel_file, sheet_name="ProjectScope").to_dict(orient="records")
-                    
-                    # Fetch latest approval metadata if sheet exists
-                    data["latestApproval"] = None
-                    if "Approvals" in excel_file.sheet_names:
-                        df_approvals = pd.read_excel(excel_file, sheet_name="Approvals")
-                        if not df_approvals.empty:
-                            last_row = df_approvals.iloc[-1].to_dict()
-                            if "Timestamp" in last_row and pd.notnull(last_row["Timestamp"]):
-                                last_row["Timestamp"] = str(last_row["Timestamp"])
-                            data["latestApproval"] = last_row
-                    
-                    # Format dates in NextSteps to strings for JSON safety
-                    for item in data["nextsteps"]:
-                        if "Deadline" in item and pd.notnull(item["Deadline"]):
-                            if isinstance(item["Deadline"], pd.Timestamp) or hasattr(item["Deadline"], "strftime"):
-                                item["Deadline"] = item["Deadline"].strftime("%Y-%m-%d")
-                            else:
-                                item["Deadline"] = str(item["Deadline"])
-                                
+
+                data = {
+                    "projects": projects,
+                    "achievements": achievements,
+                    "risks": risks,
+                    "nextsteps": nextsteps,
+                    "decisions": decisions,
+                    "scopes": scopes,
+                    "latestApproval": latest_approval
+                }
+
+                # Format dates in NextSteps to strings for JSON safety
+                for item in data["nextsteps"]:
+                    if "Deadline" in item and item["Deadline"]:
+                        item["Deadline"] = str(item["Deadline"])
+
                 self.send_json_response(200, data)
             except Exception as e:
                 import traceback
                 traceback.print_exc()
-                if isinstance(e, PermissionError) or "Permission denied" in str(e):
-                    self.send_error_response(500, "The Excel database file is currently locked. Please close it if it is open in Microsoft Excel and try again.")
-                else:
-                    self.send_error_response(500, f"Error reading Excel data: {str(e)}")
+                self.send_error_response(500, f"Error querying Supabase database: {str(e)}")
             return
 
         elif path == "/api/plan/data":
+            if not self.check_auth():
+                return
             plan_path = "project_plan.json"
             if not os.path.exists(plan_path):
                 self.send_json_response(200, {"projectName": "", "tasks": []})
@@ -421,6 +510,11 @@ class PMORequestHandler(BaseHTTPRequestHandler):
         parsed_path = urllib.parse.urlparse(self.path)
         path = parsed_path.path
 
+        # Check token authorization for all POST APIs
+        if path.startswith("/api/"):
+            if not self.check_auth():
+                return
+
         # Route: Submit Data from Web UI
         if path == "/api/submit":
             try:
@@ -434,14 +528,115 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                     self.send_error_response(400, "Invalid payload. Missing sheet datasets.")
                     return
 
-                # Convert lists of dicts into DataFrames
+                # 1. Sync to Supabase
+                # A. Upsert Projects
+                for p in payload["projects"]:
+                    supabase.table("projects").upsert({
+                        "project": p.get("Project"),
+                        "manager": p.get("Manager"),
+                        "planned_pct": p.get("Planned %"),
+                        "actual_pct": p.get("Actual %"),
+                        "budget": p.get("Budget"),
+                        "actual_cost": p.get("Actual Cost"),
+                        "delay_days": p.get("Delay Days"),
+                        "risk_score": p.get("Risk Score"),
+                        "approved_by": p.get("Approved By")
+                    }).execute()
+
+                # B. Sync Deletions
+                all_db_projects = supabase.table("projects").select("project").execute()
+                db_proj_names = [p["project"] for p in (all_db_projects.data or [])]
+                payload_proj_names = [p.get("Project") for p in payload["projects"]]
+                deleted_proj_names = [name for name in db_proj_names if name not in payload_proj_names]
+                for name in deleted_proj_names:
+                    supabase.table("projects").delete().eq("project", name).execute()
+
+                # C. Achievements
+                if payload_proj_names:
+                    supabase.table("achievements").delete().in_("project", payload_proj_names).execute()
+                if "achievements" in payload and payload["achievements"]:
+                    ach_rows = [{"project": a.get("Project"), "achievement": a.get("Achievement")} for a in payload["achievements"]]
+                    supabase.table("achievements").insert(ach_rows).execute()
+
+                # D. Risks
+                if payload_proj_names:
+                    supabase.table("risks").delete().in_("project", payload_proj_names).execute()
+                if "risks" in payload and payload["risks"]:
+                    risk_rows = [{
+                        "project": r.get("Project"),
+                        "risk_description": r.get("Risk Description"),
+                        "probability": r.get("Probability"),
+                        "impact": r.get("Impact"),
+                        "mitigation": r.get("Mitigation")
+                    } for r in payload["risks"]]
+                    supabase.table("risks").insert(risk_rows).execute()
+
+                # E. Next Steps
+                if payload_proj_names:
+                    supabase.table("next_steps").delete().in_("project", payload_proj_names).execute()
+                if "nextsteps" in payload and payload["nextsteps"]:
+                    ns_rows = [{
+                        "project": n.get("Project"),
+                        "task": n.get("Task"),
+                        "owner": n.get("Owner"),
+                        "deadline": n.get("Deadline") if n.get("Deadline") else None
+                    } for n in payload["nextsteps"]]
+                    supabase.table("next_steps").insert(ns_rows).execute()
+
+                # F. Decisions
+                if payload_proj_names:
+                    supabase.table("decisions").delete().in_("project", payload_proj_names).execute()
+                if "decisions" in payload and payload["decisions"]:
+                    dec_rows = [{
+                        "project": d.get("Project"),
+                        "decision_required": d.get("Decision Required"),
+                        "context": d.get("Context"),
+                        "options": d.get("Options"),
+                        "recommendation": d.get("Recommendation")
+                    } for d in payload["decisions"]]
+                    supabase.table("decisions").insert(dec_rows).execute()
+
+                # G. Scopes
+                if "scopes" in payload and payload["scopes"]:
+                    for s in payload["scopes"]:
+                        supabase.table("project_scopes").upsert({
+                            "project": s.get("Project"),
+                            "presales_document": s.get("Pre-sales Document"),
+                            "components": s.get("Components"),
+                            "scope_prepare": s.get("Scope Prepare"),
+                            "project_time_plan": s.get("Project Time Plan"),
+                            "agreed_document": s.get("Agreed Document"),
+                            "project_plan": s.get("Project Plan"),
+                            "scope_in": s.get("Scope In"),
+                            "scope_out": s.get("Scope Out"),
+                            "customer_presentation_type": s.get("Customer Presentation Type"),
+                            "kick_off": s.get("Kick Off"),
+                            "weekly": s.get("Weekly"),
+                            "monthly": s.get("Monthly"),
+                            "milestone_progress": s.get("Milestone Progress"),
+                            "project_status": s.get("Project Status"),
+                            "monthly_status": s.get("Monthly Status"),
+                            "executive_presentation": s.get("Executive Presentation"),
+                            "risk_register_party_expected": s.get("Risk Register Party Expected")
+                        }).execute()
+
+                # H. Approval Log history insertion
+                approved_by = payload.get("approvedBy", "Project Lead")
+                approved_projs_list = payload.get("approvedProjects", [])
+                approved_projs_str = ", ".join(approved_projs_list) if approved_projs_list else ""
+                if "approvedBy" in payload and payload["approvedBy"]:
+                    supabase.table("approvals").insert({
+                        "approved_by": approved_by,
+                        "approved_projects": approved_projs_str
+                    }).execute()
+
+                # 2. Write to Excel compile cache
                 df_projects = pd.DataFrame(payload["projects"])
                 df_achievements = pd.DataFrame(payload["achievements"])
                 df_risks = pd.DataFrame(payload["risks"])
                 df_nextsteps = pd.DataFrame(payload["nextsteps"])
                 df_decisions = pd.DataFrame(payload["decisions"])
 
-                # ProjectScope
                 df_scopes = None
                 if "scopes" in payload:
                     df_scopes = pd.DataFrame(payload["scopes"])
@@ -456,75 +651,49 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                 if df_scopes is None:
                     df_scopes = pd.DataFrame()
 
-                # Ensure columns match expected schemas precisely
-                # Projects
+                # Align columns
                 p_cols = ["Project", "Manager", "Planned %", "Actual %", "Budget", "Actual Cost", "Delay Days", "Risk Score", "Approved By"]
                 for col in p_cols:
                     if col not in df_projects.columns:
                         df_projects[col] = None
                 df_projects = df_projects[p_cols]
 
-                # Achievements
                 a_cols = ["Project", "Achievement"]
                 for col in a_cols:
                     if col not in df_achievements.columns:
                         df_achievements[col] = None
                 df_achievements = df_achievements[a_cols]
 
-                # Risks
                 r_cols = ["Project", "Risk Description", "Probability", "Impact", "Mitigation"]
                 for col in r_cols:
                     if col not in df_risks.columns:
                         df_risks[col] = None
                 df_risks = df_risks[r_cols]
 
-                # NextSteps
                 n_cols = ["Project", "Task", "Owner", "Deadline"]
                 for col in n_cols:
                     if col not in df_nextsteps.columns:
                         df_nextsteps[col] = None
                 df_nextsteps = df_nextsteps[n_cols]
 
-                # Decisions
                 d_cols = ["Project", "Decision Required", "Context", "Options", "Recommendation"]
                 for col in d_cols:
                     if col not in df_decisions.columns:
                         df_decisions[col] = None
                 df_decisions = df_decisions[d_cols]
 
-                # Scopes
                 s_cols = [
-                    "Project",
-                    "Pre-sales Document",
-                    "Components",
-                    "Scope Prepare",
-                    "Project Time Plan",
-                    "Agreed Document",
-                    "Project Plan",
-                    "Scope In",
-                    "Scope Out",
-                    "Customer Presentation Type",
-                    "Kick Off",
-                    "Weekly",
-                    "Monthly",
-                    "Milestone Progress",
-                    "Project Status",
-                    "Monthly Status",
-                    "Executive Presentation",
-                    "Risk Register Party Expected"
+                    "Project", "Pre-sales Document", "Components", "Scope Prepare", "Project Time Plan",
+                    "Agreed Document", "Project Plan", "Scope In", "Scope Out", "Customer Presentation Type",
+                    "Kick Off", "Weekly", "Monthly", "Milestone Progress", "Project Status", "Monthly Status",
+                    "Executive Presentation", "Risk Register Party Expected"
                 ]
                 for col in s_cols:
                     if col not in df_scopes.columns:
                         df_scopes[col] = None
                 df_scopes = df_scopes[s_cols]
 
-                # Logging approval history
-                approved_by = payload.get("approvedBy", "Project Lead")
-                approved_projs_list = payload.get("approvedProjects", [])
-                approved_projs_str = ", ".join(approved_projs_list) if approved_projs_list else ""
-                
                 with EXCEL_LOCK:
-                    # Check if Approvals sheet already exists
                     df_approvals = pd.DataFrame(columns=["Timestamp", "Approved By", "Approved Projects"])
                     if os.path.exists(EXCEL_PATH):
                         try:
@@ -534,18 +703,14 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                         except Exception as e:
                             print(f"Error reading approvals log: {e}")
                     
-                    # Create a new log row
                     from datetime import datetime
                     new_row = {
                         "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         "Approved By": approved_by,
                         "Approved Projects": approved_projs_str
                     }
-                    
-                    # Append row
                     df_approvals = pd.concat([df_approvals, pd.DataFrame([new_row])], ignore_index=True)
 
-                    # Write to Excel sheets
                     with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl") as writer:
                         df_projects.to_excel(writer, sheet_name="Projects", index=False)
                         df_achievements.to_excel(writer, sheet_name="Achievements", index=False)
@@ -555,26 +720,19 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                         df_scopes.to_excel(writer, sheet_name="ProjectScope", index=False)
                         df_approvals.to_excel(writer, sheet_name="Approvals", index=False)
 
-                    print(f"Excel data updated (Approved By: {approved_by}). Running report generation...")
-
-                    # Regenerate Word report
+                    print(f"Excel cache updated (Approved By: {approved_by}). Running report generation...")
                     pmo_weekly_report.run_report_generation(approved_by=approved_by)
 
-                # Send success response
-                response_data = {
+                self.send_json_response(200, {
                     "status": "success",
-                    "message": "Project data successfully synced with Excel and Word report generated."
-                }
-                self.send_json_response(200, response_data)
+                    "message": "Project data successfully synced with database and Word report generated."
+                })
 
             except Exception as e:
                 import traceback
                 print(f"Error during submit: {e}")
                 traceback.print_exc()
-                if isinstance(e, PermissionError) or "Permission denied" in str(e):
-                    self.send_error_response(500, "The Excel database file is currently locked. Please close it if it is open in Microsoft Excel and try again.")
-                else:
-                    self.send_error_response(500, f"Error processing submission: {str(e)}")
+                self.send_error_response(500, f"Error processing submission: {str(e)}")
             return
 
         elif path == "/api/scope/upload":
@@ -623,12 +781,10 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                     self.send_error_response(400, "No file uploaded")
                     return
                 
-                # Save temp file
                 temp_path = "temp_scope" + os.path.splitext(filename)[1].lower()
                 with open(temp_path, "wb") as f:
                     f.write(file_data)
                 
-                # Parse
                 scope_fields = {}
                 components = []
                 if doc_type == "agreed":
@@ -638,7 +794,6 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                 
                 scope_fields["Project"] = project_name
                 
-                # Clean up temp file
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
                 
@@ -661,20 +816,16 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                     self.send_error_response(400, "Content-Type must be multipart/form-data")
                     return
                 
-                # Extract boundary
                 boundary = content_type.split("boundary=")[1].encode()
                 content_length = int(self.headers.get('Content-Length', 0))
                 body = self.rfile.read(content_length)
                 
-                # Split body by boundary to find the file
                 parts = body.split(b"--" + boundary)
                 file_data = None
                 for part in parts:
                     if b"filename=" in part:
-                        # Find end of headers
                         header_end = part.find(b"\r\n\r\n")
                         if header_end != -1:
-                            # File content is between headers end and the trailing \r\n
                             file_data = part[header_end+4:-2]
                             break
                 
@@ -682,19 +833,15 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                     self.send_error_response(400, "No file uploaded")
                     return
                 
-                # Save the temporary file
                 temp_pdf_path = "temp_plan.pdf"
                 with open(temp_pdf_path, "wb") as f:
                     f.write(file_data)
                 
-                # Parse using pdfplumber helper
                 plan_data = parse_pdf_plan_with_hierarchy(temp_pdf_path)
                 
-                # Save to project_plan.json
                 with open("project_plan.json", "w", encoding="utf-8") as f:
                     json.dump(plan_data, f, indent=2)
                 
-                # Delete temp PDF
                 if os.path.exists(temp_pdf_path):
                     os.remove(temp_pdf_path)
                 
@@ -716,7 +863,6 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                 post_data = self.rfile.read(content_length)
                 plan_data = json.loads(post_data.decode('utf-8'))
                 
-                # Write to project_plan.json
                 with open("project_plan.json", "w", encoding="utf-8") as f:
                     json.dump(plan_data, f, indent=2)
                 
@@ -752,42 +898,32 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                 payload = json.loads(post_data.decode('utf-8'))
 
                 project_name = payload.get("project")
-                approved_by = payload.get("approvedBy")  # string or null
+                approved_by = payload.get("approvedBy")
 
                 if not project_name:
                     self.send_error_response(400, "Missing project name.")
                     return
 
-                if not os.path.exists(EXCEL_PATH):
-                    self.send_error_response(404, f"Excel file {EXCEL_PATH} not found.")
-                    return
+                # 1. Update database
+                supabase.table("projects").update({"approved_by": approved_by}).eq("project", project_name).execute()
 
-                with EXCEL_LOCK:
-                    # Read all sheets to preserve them
-                    excel_file = pd.ExcelFile(EXCEL_PATH)
-                    sheets = {}
-                    for sheet in excel_file.sheet_names:
-                        sheets[sheet] = pd.read_excel(excel_file, sheet_name=sheet)
+                # 2. Update Excel local cache
+                if os.path.exists(EXCEL_PATH):
+                    with EXCEL_LOCK:
+                        excel_file = pd.ExcelFile(EXCEL_PATH)
+                        sheets = {s: pd.read_excel(excel_file, sheet_name=s) for s in excel_file.sheet_names}
+                        df_projects = sheets["Projects"]
+                        if "Approved By" not in df_projects.columns:
+                            df_projects["Approved By"] = None
+                        df_projects["Approved By"] = df_projects["Approved By"].astype(object)
 
-                    df_projects = sheets["Projects"]
-                    
-                    # Check if "Approved By" column exists, if not add it
-                    if "Approved By" not in df_projects.columns:
-                        df_projects["Approved By"] = None
-                    df_projects["Approved By"] = df_projects["Approved By"].astype(object)
+                        idx_list = df_projects.index[df_projects["Project"] == project_name].tolist()
+                        if idx_list:
+                            df_projects.at[idx_list[0], "Approved By"] = approved_by
 
-                    # Find project and update
-                    idx_list = df_projects.index[df_projects["Project"] == project_name].tolist()
-                    if not idx_list:
-                        self.send_error_response(404, f"Project '{project_name}' not found.")
-                        return
-                    
-                    df_projects.at[idx_list[0], "Approved By"] = approved_by
-
-                    # Write all sheets back
-                    with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl") as writer:
-                        for sheet_name, df_sheet in sheets.items():
-                            df_sheet.to_excel(writer, sheet_name=sheet_name, index=False)
+                        with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl") as writer:
+                            for sheet_name, df_sheet in sheets.items():
+                                df_sheet.to_excel(writer, sheet_name=sheet_name, index=False)
 
                 self.send_json_response(200, {
                     "status": "success",
@@ -796,10 +932,7 @@ class PMORequestHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 import traceback
                 traceback.print_exc()
-                if isinstance(e, PermissionError) or "Permission denied" in str(e):
-                    self.send_error_response(500, "The Excel database file is currently locked. Please close it if it is open in Microsoft Excel and try again.")
-                else:
-                    self.send_error_response(500, f"Error processing approval: {str(e)}")
+                self.send_error_response(500, f"Error processing approval: {str(e)}")
             return
 
         elif path == "/api/approve/bulk":
@@ -808,38 +941,34 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                 post_data = self.rfile.read(content_length)
                 payload = json.loads(post_data.decode('utf-8'))
 
-                approvals = payload.get("approvals")  # dict of project_name: approvedBy (or None)
+                approvals = payload.get("approvals")
 
                 if approvals is None or not isinstance(approvals, dict):
                     self.send_error_response(400, "Missing approvals mapping.")
                     return
 
-                if not os.path.exists(EXCEL_PATH):
-                    self.send_error_response(404, f"Excel file {EXCEL_PATH} not found.")
-                    return
+                # 1. Update database bulk
+                for proj_name, approved_by in approvals.items():
+                    supabase.table("projects").update({"approved_by": approved_by}).eq("project", proj_name).execute()
 
-                with EXCEL_LOCK:
-                    # Read all sheets
-                    excel_file = pd.ExcelFile(EXCEL_PATH)
-                    sheets = {}
-                    for sheet in excel_file.sheet_names:
-                        sheets[sheet] = pd.read_excel(excel_file, sheet_name=sheet)
+                # 2. Update Excel cache
+                if os.path.exists(EXCEL_PATH):
+                    with EXCEL_LOCK:
+                        excel_file = pd.ExcelFile(EXCEL_PATH)
+                        sheets = {s: pd.read_excel(excel_file, sheet_name=s) for s in excel_file.sheet_names}
+                        df_projects = sheets["Projects"]
+                        if "Approved By" not in df_projects.columns:
+                            df_projects["Approved By"] = None
+                        df_projects["Approved By"] = df_projects["Approved By"].astype(object)
 
-                    df_projects = sheets["Projects"]
-                    
-                    if "Approved By" not in df_projects.columns:
-                        df_projects["Approved By"] = None
-                    df_projects["Approved By"] = df_projects["Approved By"].astype(object)
+                        for proj_name, approved_by in approvals.items():
+                            idx_list = df_projects.index[df_projects["Project"] == proj_name].tolist()
+                            if idx_list:
+                                df_projects.at[idx_list[0], "Approved By"] = approved_by
 
-                    for proj_name, approved_by in approvals.items():
-                        idx_list = df_projects.index[df_projects["Project"] == proj_name].tolist()
-                        if idx_list:
-                            df_projects.at[idx_list[0], "Approved By"] = approved_by
-
-                    # Write all sheets back
-                    with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl") as writer:
-                        for sheet_name, df_sheet in sheets.items():
-                            df_sheet.to_excel(writer, sheet_name=sheet_name, index=False)
+                        with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl") as writer:
+                            for sheet_name, df_sheet in sheets.items():
+                                df_sheet.to_excel(writer, sheet_name=sheet_name, index=False)
 
                 self.send_json_response(200, {
                     "status": "success",
@@ -848,32 +977,30 @@ class PMORequestHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 import traceback
                 traceback.print_exc()
-                if isinstance(e, PermissionError) or "Permission denied" in str(e):
-                    self.send_error_response(500, "The Excel database file is currently locked. Please close it if it is open in Microsoft Excel and try again.")
-                else:
-                    self.send_error_response(500, f"Error in bulk approval: {str(e)}")
+                self.send_error_response(500, f"Error in bulk approval: {str(e)}")
             return
 
         elif path == "/api/approve/reset":
             try:
-                if not os.path.exists(EXCEL_PATH):
-                    self.send_error_response(404, f"Excel file {EXCEL_PATH} not found.")
-                    return
+                # 1. Reset database
+                supabase.table("projects").update({"approved_by": None}).execute()
+                supabase.table("approvals").delete().neq("approved_by", "dummy_unlikely_match_val").execute()
 
-                with EXCEL_LOCK:
-                    # Read all sheets
-                    excel_file = pd.ExcelFile(EXCEL_PATH)
-                    sheets = {}
-                    for sheet in excel_file.sheet_names:
-                        sheets[sheet] = pd.read_excel(excel_file, sheet_name=sheet)
+                # 2. Reset local Excel
+                if os.path.exists(EXCEL_PATH):
+                    with EXCEL_LOCK:
+                        excel_file = pd.ExcelFile(EXCEL_PATH)
+                        sheets = {s: pd.read_excel(excel_file, sheet_name=s) for s in excel_file.sheet_names}
+                        df_projects = sheets["Projects"]
+                        df_projects["Approved By"] = None
+                        
+                        df_approvals = sheets["Approvals"]
+                        df_approvals = df_approvals.iloc[0:0] # clear log
+                        sheets["Approvals"] = df_approvals
 
-                    df_projects = sheets["Projects"]
-                    df_projects["Approved By"] = None
-
-                    # Write all sheets back
-                    with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl") as writer:
-                        for sheet_name, df_sheet in sheets.items():
-                            df_sheet.to_excel(writer, sheet_name=sheet_name, index=False)
+                        with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl") as writer:
+                            for sheet_name, df_sheet in sheets.items():
+                                df_sheet.to_excel(writer, sheet_name=sheet_name, index=False)
 
                 self.send_json_response(200, {
                     "status": "success",
@@ -882,10 +1009,7 @@ class PMORequestHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 import traceback
                 traceback.print_exc()
-                if isinstance(e, PermissionError) or "Permission denied" in str(e):
-                    self.send_error_response(500, "The Excel database file is currently locked. Please close it if it is open in Microsoft Excel and try again.")
-                else:
-                    self.send_error_response(500, f"Error resetting approvals: {str(e)}")
+                self.send_error_response(500, f"Error resetting approvals: {str(e)}")
             return
 
         self.send_error_response(404, "Endpoint not found.")
