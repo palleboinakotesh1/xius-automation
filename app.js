@@ -1,9 +1,9 @@
 // ==========================================================================
 // SUPABASE CLIENT CONFIGURATION & STATE
 // ==========================================================================
-const SUPABASE_URL = "https://xczrfhxlzfrytbtpidhn.supabaseClient.co";
+const SUPABASE_URL = "https://xczrfhxlzfrytbtpidhn.supabase.co";
 const SUPABASE_KEY = "sb_publishable_wngiEluCpegeAyfehAkQ0Q_0P6Fmklw";
-const supabaseClient = window.supabase ? window.supabaseClient.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 async function authenticatedFetch(url, options = {}) {
     if (!supabaseClient) return fetch(url, options);
