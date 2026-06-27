@@ -629,89 +629,220 @@
                     </div>
 
                     <form id="scope-form" class="hidden" novalidate>
-                        <div class="grid-2-cols" style="gap: 20px;">
-                            <!-- Left Column -->
-                            <div style="display: flex; flex-direction: column; gap: 20px;">
-                                <!-- Group 1: Pre-sales -->
-                                <div class="form-section-card bg-glass card-shadow" style="padding: 20px; margin-bottom: 0;">
-                                    <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--primary-color); display: flex; align-items: center; gap: 8px;">
-                                        <i data-lucide="file-text" style="width: 18px; height: 18px; color: var(--primary-color);"></i> Pre-sales
+                        <!-- Form Sub-Navigation Tabs (Page-by-page steps) -->
+                        <div class="form-tabs" style="margin-bottom: 25px;">
+                            <button type="button" class="form-tab-btn active" data-scope-tab="presales">1. Pre-sales</button>
+                            <button type="button" class="form-tab-btn" data-scope-tab="agreed">2. Agreed Document</button>
+                            <button type="button" class="form-tab-btn" data-scope-tab="customer">3. Customer Presentation</button>
+                            <button type="button" class="form-tab-btn" data-scope-tab="milestones">4. Milestones</button>
+                            <button type="button" class="form-tab-btn" data-scope-tab="internal">5. Internal Reports</button>
+                            <button type="button" class="form-tab-btn" data-scope-tab="risk">6. Risk Register</button>
+                        </div>
+
+                        <!-- Step 1: Pre-sales & Components -->
+                        <div class="form-tab-content active" id="scope-tab-presales">
+                            <div class="grid-2-cols" style="gap: 20px;">
+                                <!-- Left Column: Document upload -->
+                                <div class="form-section-card bg-glass card-shadow" style="padding: 25px; margin-bottom: 0;">
+                                    <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--primary-color); display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
+                                        <i data-lucide="upload-cloud" style="width: 20px; height: 20px; color: var(--primary-color);"></i> Pre-sales Document Upload
                                     </h3>
-                                    <div class="form-group" style="margin-top: 15px; margin-bottom: 15px;">
-                                        <label for="scope-input-presales-doc" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Document</label>
-                                        <input type="text" id="scope-input-presales-doc" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                                    <div id="scope-dropzone-presales" class="scope-dropzone" style="border: 2px dashed var(--border-color); border-radius: var(--border-radius); padding: 30px 15px; cursor: pointer; transition: all var(--transition-speed) ease; background: rgba(255,255,255,0.02); text-align: center;">
+                                        <i data-lucide="file-text" style="width: 40px; height: 40px; color: var(--secondary-color); margin-bottom: 10px; display: inline-block;"></i>
+                                        <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--primary-color); margin-bottom: 5px;">Drag & Drop Pre-sales Doc Here</h4>
+                                        <p class="text-muted" style="font-size: 0.78rem; margin-bottom: 12px;">Supports PDF, DOCX, and TXT files</p>
+                                        <button type="button" class="btn btn-secondary btn-sm" id="btn-browse-presales-file">Browse File</button>
+                                        <input type="file" id="scope-file-input-presales" style="display: none;" accept=".pdf,.docx,.txt">
                                     </div>
-                                    <div class="form-group" style="margin-bottom: 15px;">
-                                        <label for="scope-input-presales-scope" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Scope Prepare</label>
-                                        <input type="text" id="scope-input-presales-scope" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                                    <div id="scope-upload-progress-presales" class="hidden" style="margin-top: 15px;">
+                                        <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--secondary-color); margin-bottom: 4px;">
+                                            <span id="scope-filename-presales">document.pdf</span>
+                                            <span id="scope-percentage-presales">0%</span>
+                                        </div>
+                                        <div style="height: 5px; background-color: var(--border-color); border-radius: 3px; overflow: hidden;">
+                                            <div id="scope-bar-presales" style="width: 0%; height: 100%; background-color: var(--primary-color); transition: width 0.1s ease;"></div>
+                                        </div>
                                     </div>
-                                    <div class="form-group" style="margin-bottom: 0;">
-                                        <label for="scope-input-presales-time" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Project Time Plan</label>
-                                        <input type="text" id="scope-input-presales-time" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                                    <div id="scope-status-presales" class="hidden" style="margin-top: 10px; color: var(--secondary-color); font-size: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                        <i data-lucide="loader" class="icon anim-spin" style="width:14px;height:14px;color:var(--primary-color);"></i>
+                                        <span>Analyzing document & extracting components...</span>
                                     </div>
                                 </div>
 
-                                <!-- Group 2: Risk Register -->
-                                <div class="form-section-card bg-glass card-shadow" style="padding: 20px; margin-bottom: 0;">
-                                    <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--primary-color); display: flex; align-items: center; gap: 8px;">
-                                        <i data-lucide="alert-triangle" style="width: 18px; height: 18px; color: var(--primary-color);"></i> Risk Register
+                                <!-- Right Column: Milestones -->
+                                <div class="form-section-card bg-glass card-shadow" style="padding: 25px; margin-bottom: 0;">
+                                    <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--primary-color); display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
+                                        <i data-lucide="file-check" style="width: 20px; height: 20px; color: var(--primary-color);"></i> Pre-sales Milestones
                                     </h3>
-                                    <div class="form-group" style="margin-top: 15px; margin-bottom: 0;">
-                                        <label for="scope-input-risk-party" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Party Expected</label>
-                                        <input type="text" id="scope-input-risk-party" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                                    <div class="form-group" style="margin-bottom: 12px;">
+                                        <label for="scope-input-presales-doc" style="display: block; font-size: 0.82rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 4px;">Pre-sales Document Name</label>
+                                        <input type="text" id="scope-input-presales-doc" class="form-input" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 12px;">
+                                        <label for="scope-input-presales-scope" style="display: block; font-size: 0.82rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 4px;">Scope Prepare Status</label>
+                                        <input type="text" id="scope-input-presales-scope" class="form-input" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="scope-input-presales-time" style="display: block; font-size: 0.82rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 4px;">Project Time Plan</label>
+                                        <input type="text" id="scope-input-presales-time" class="form-input" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Right Column -->
-                            <div style="display: flex; flex-direction: column; gap: 20px;">
-                                <!-- Group 3: Customer Presentation -->
-                                <div class="form-section-card bg-glass card-shadow" style="padding: 20px; margin-bottom: 0;">
-                                    <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--primary-color); display: flex; align-items: center; gap: 8px;">
-                                        <i data-lucide="presentation" style="width: 18px; height: 18px; color: var(--primary-color);"></i> Customer Presentation
+                            <!-- Full Width: Extracted Components List -->
+                            <div class="form-section-card bg-glass card-shadow" style="padding: 20px; margin-top: 20px;">
+                                <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--primary-color); display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                    <i data-lucide="cpu" style="width: 18px; height: 18px; color: var(--primary-color);"></i> Extracted Components
+                                </h3>
+                                <p class="text-muted" style="font-size: 0.8rem; margin-bottom: 12px;">
+                                    Project components extracted from the pre-sales document. Click on the cross icon next to a tag to remove it, or add custom tags below.
+                                </p>
+                                <div id="scope-components-container" style="display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); min-height: 50px; background-color: rgba(255,255,255,0.01); margin-bottom: 12px;">
+                                    <!-- Populated dynamically as tags -->
+                                </div>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <input type="text" id="input-add-component" class="form-input" style="flex-grow: 1; padding: 8px 10px; border-radius: var(--border-radius-sm); font-size: 0.88rem;" placeholder="Add custom component name (e.g. CRM Portal)...">
+                                    <button type="button" class="btn btn-secondary btn-sm" id="btn-add-component" style="white-space: nowrap;">
+                                        <i data-lucide="plus" style="width:14px;height:14px;"></i> Add Tag
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 2: Agreed Document -->
+                        <div class="form-tab-content" id="scope-tab-agreed">
+                            <div class="grid-2-cols" style="gap: 20px;">
+                                <!-- Left Column: Agreed Document upload -->
+                                <div class="form-section-card bg-glass card-shadow" style="padding: 25px; margin-bottom: 0;">
+                                    <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--primary-color); display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
+                                        <i data-lucide="upload-cloud" style="width: 20px; height: 20px; color: var(--primary-color);"></i> Agreed Document Upload
                                     </h3>
-                                    <div class="form-group" style="margin-top: 15px; margin-bottom: 15px;">
-                                        <label for="scope-input-cust-kickoff" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Kick Off</label>
-                                        <input type="text" id="scope-input-cust-kickoff" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                                    <div id="scope-dropzone-agreed" class="scope-dropzone" style="border: 2px dashed var(--border-color); border-radius: var(--border-radius); padding: 30px 15px; cursor: pointer; transition: all var(--transition-speed) ease; background: rgba(255,255,255,0.02); text-align: center;">
+                                        <i data-lucide="file-check" style="width: 40px; height: 40px; color: var(--secondary-color); margin-bottom: 10px; display: inline-block;"></i>
+                                        <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--primary-color); margin-bottom: 5px;">Drag & Drop Agreed Doc Here</h4>
+                                        <p class="text-muted" style="font-size: 0.78rem; margin-bottom: 12px;">Supports PDF, DOCX, and TXT files</p>
+                                        <button type="button" class="btn btn-secondary btn-sm" id="btn-browse-agreed-file">Browse File</button>
+                                        <input type="file" id="scope-file-input-agreed" style="display: none;" accept=".pdf,.docx,.txt">
                                     </div>
-                                    <div class="form-group" style="margin-bottom: 15px;">
-                                        <label for="scope-input-cust-weekly" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Weekly</label>
-                                        <input type="text" id="scope-input-cust-weekly" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                                    <div id="scope-upload-progress-agreed" class="hidden" style="margin-top: 15px;">
+                                        <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--secondary-color); margin-bottom: 4px;">
+                                            <span id="scope-filename-agreed">document.pdf</span>
+                                            <span id="scope-percentage-agreed">0%</span>
+                                        </div>
+                                        <div style="height: 5px; background-color: var(--border-color); border-radius: 3px; overflow: hidden;">
+                                            <div id="scope-bar-agreed" style="width: 0%; height: 100%; background-color: var(--primary-color); transition: width 0.1s ease;"></div>
+                                        </div>
                                     </div>
-                                    <div class="form-group" style="margin-bottom: 0;">
-                                        <label for="scope-input-cust-monthly" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Monthly</label>
-                                        <input type="text" id="scope-input-cust-monthly" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                                    <div id="scope-status-agreed" class="hidden" style="margin-top: 10px; color: var(--secondary-color); font-size: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                        <i data-lucide="loader" class="icon anim-spin" style="width:14px;height:14px;color:var(--primary-color);"></i>
+                                        <span>Analyzing document & extracting project scope details...</span>
+                                    </div>
+                                    <div class="form-group" style="margin-top: 15px; margin-bottom: 0;">
+                                        <label for="scope-input-agreed-doc" style="display: block; font-size: 0.82rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 4px;">Agreed Document Name</label>
+                                        <input type="text" id="scope-input-agreed-doc" class="form-input" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
                                     </div>
                                 </div>
 
-                                <!-- Group 4: Internal Reports -->
-                                <div class="form-section-card bg-glass card-shadow" style="padding: 20px; margin-bottom: 0;">
-                                    <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--primary-color); display: flex; align-items: center; gap: 8px;">
-                                        <i data-lucide="clipboard-list" style="width: 18px; height: 18px; color: var(--primary-color);"></i> Internal Reports
-                                    </h3>
-                                    <div class="form-group" style="margin-top: 15px; margin-bottom: 0;">
-                                        <label for="scope-input-internal-format" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Presentation Format</label>
-                                        <input type="text" id="scope-input-internal-format" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                                <!-- Right Column: Scope Fields -->
+                                <div style="display: flex; flex-direction: column; gap: 20px;">
+                                    <div class="form-section-card bg-glass card-shadow" style="padding: 20px; margin-bottom: 0;">
+                                        <label for="scope-input-project-plan" style="display: block; font-size: 0.88rem; font-weight: 700; color: var(--primary-color); margin-bottom: 6px;">Project Plan</label>
+                                        <textarea id="scope-input-project-plan" class="form-input" style="width: 100%; min-height: 80px; padding: 8px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.88rem; resize: vertical;"></textarea>
+                                    </div>
+                                    <div class="form-section-card bg-glass card-shadow" style="padding: 20px; margin-bottom: 0;">
+                                        <label for="scope-input-scope-in" style="display: block; font-size: 0.88rem; font-weight: 700; color: var(--primary-color); margin-bottom: 6px;">Scope In</label>
+                                        <textarea id="scope-input-scope-in" class="form-input" style="width: 100%; min-height: 80px; padding: 8px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.88rem; resize: vertical;"></textarea>
+                                    </div>
+                                    <div class="form-section-card bg-glass card-shadow" style="padding: 20px; margin-bottom: 0;">
+                                        <label for="scope-input-scope-out" style="display: block; font-size: 0.88rem; font-weight: 700; color: var(--primary-color); margin-bottom: 6px;">Scope Out</label>
+                                        <textarea id="scope-input-scope-out" class="form-input" style="width: 100%; min-height: 80px; padding: 8px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.88rem; resize: vertical;"></textarea>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Full Width: Project Progress -->
-                        <div class="form-section-card bg-glass card-shadow" style="padding: 20px; margin-top: 20px; margin-bottom: 20px;">
-                            <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--primary-color); display: flex; align-items: center; gap: 8px;">
-                                <i data-lucide="trending-up" style="width: 18px; height: 18px; color: var(--primary-color);"></i> Project Progress
-                            </h3>
-                            <div class="form-group" style="margin-top: 15px; margin-bottom: 0;">
-                                <label for="scope-input-progress" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Project Progress Details</label>
-                                <textarea id="scope-input-progress" class="form-input" style="width: 100%; min-height: 100px; padding: 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); resize: vertical; font-family: inherit; font-size: 0.9rem;"></textarea>
+                        <!-- Step 3: Customer Presentation -->
+                        <div class="form-tab-content" id="scope-tab-customer">
+                            <div class="form-section-card bg-glass card-shadow" style="padding: 25px; margin-bottom: 0;">
+                                <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--primary-color); display: flex; align-items: center; gap: 8px; margin-bottom: 20px;">
+                                    <i data-lucide="presentation" style="width: 20px; height: 20px; color: var(--primary-color);"></i> Customer Presentation & Cadence
+                                </h3>
+                                <div class="form-group" style="margin-bottom: 15px;">
+                                    <label for="scope-input-customer-pres-type" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Customer Presentation Type (Format/Style)</label>
+                                    <input type="text" id="scope-input-customer-pres-type" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 15px;">
+                                    <label for="scope-input-cust-kickoff" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Kick Off Meeting Details</label>
+                                    <input type="text" id="scope-input-cust-kickoff" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 15px;">
+                                    <label for="scope-input-cust-weekly" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Weekly Presentation Details</label>
+                                    <input type="text" id="scope-input-cust-weekly" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label for="scope-input-cust-monthly" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Monthly Presentation Details</label>
+                                    <input type="text" id="scope-input-cust-monthly" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Actions Bar -->
-                        <div class="form-actions-bar" style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 20px; display: flex; justify-content: flex-end;">
-                            <button type="submit" class="btn btn-primary" id="btn-save-scope">
-                                <i data-lucide="save" style="width:16px;height:16px;"></i> Save Scope Changes
+                        <!-- Step 4: Milestones -->
+                        <div class="form-tab-content" id="scope-tab-milestones">
+                            <div class="form-section-card bg-glass card-shadow" style="padding: 25px; margin-bottom: 0;">
+                                <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--primary-color); display: flex; align-items: center; gap: 8px; margin-bottom: 20px;">
+                                    <i data-lucide="milestone" style="width: 20px; height: 20px; color: var(--primary-color);"></i> Project Milestones & Time Plan
+                                </h3>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label for="scope-input-milestone-progress" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Milestone Status / Timeline Details</label>
+                                    <textarea id="scope-input-milestone-progress" class="form-input" style="width: 100%; min-height: 150px; padding: 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); resize: vertical; font-family: inherit; font-size: 0.9rem;" placeholder="Record main milestones and deadlines..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 5: Internal Reports -->
+                        <div class="form-tab-content" id="scope-tab-internal">
+                            <div class="form-section-card bg-glass card-shadow" style="padding: 25px; margin-bottom: 0;">
+                                <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--primary-color); display: flex; align-items: center; gap: 8px; margin-bottom: 20px;">
+                                    <i data-lucide="clipboard-list" style="width: 20px; height: 20px; color: var(--primary-color);"></i> Internal Reports & Templates
+                                </h3>
+                                <div class="form-group" style="margin-bottom: 15px;">
+                                    <label for="scope-input-project-status" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Project Status (Based on Pre-sales doc)</label>
+                                    <input type="text" id="scope-input-project-status" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 15px;">
+                                    <label for="scope-input-monthly-status" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Monthly Status Template / Style</label>
+                                    <input type="text" id="scope-input-monthly-status" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label for="scope-input-executive-presentation" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Executive Presentation Format</label>
+                                    <input type="text" id="scope-input-executive-presentation" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 6: Risk Register -->
+                        <div class="form-tab-content" id="scope-tab-risk">
+                            <div class="form-section-card bg-glass card-shadow" style="padding: 25px; margin-bottom: 0;">
+                                <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--primary-color); display: flex; align-items: center; gap: 8px; margin-bottom: 20px;">
+                                    <i data-lucide="alert-triangle" style="width: 20px; height: 20px; color: var(--primary-color);"></i> Risk Register
+                                </h3>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label for="scope-input-risk-party" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Party Expected (Stakeholders responsible for risk registry)</label>
+                                    <input type="text" id="scope-input-risk-party" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Wizard Actions Footer -->
+                        <div class="form-actions-bar" style="margin-top: 25px; border-top: 1px solid var(--border-color); padding-top: 20px; display: flex; justify-content: space-between;">
+                            <button type="button" class="btn btn-secondary" id="btn-scope-prev" style="display: inline-flex; align-items: center; gap: 6px;">
+                                <i data-lucide="arrow-left" style="width: 16px; height: 16px;"></i> Previous
+                            </button>
+                            <button type="button" class="btn btn-primary" id="btn-scope-next" style="display: inline-flex; align-items: center; gap: 6px; margin-left: auto;">
+                                Next <i data-lucide="arrow-right" style="width: 16px; height: 16px;"></i>
+                            </button>
+                            <button type="submit" class="btn btn-primary" id="btn-save-scope" style="display: none; align-items: center; gap: 6px; margin-left: auto;">
+                                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save Scope Changes
                             </button>
                         </div>
                     </form>

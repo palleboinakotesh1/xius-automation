@@ -1,0 +1,11 @@
+XIUS PRE-SALES SCOPE DOCUMENT
+Project Name: Freedom Expansion
+Document Version: 1.0
+
+We will build the CRM portal, Billing Integration, and SMS Gateway modules for the project.
+The key components list:
+- CRM Portal Module
+- Billing Integration Gateway
+- SMS Gateway API
+- Analytics Dashboard
+- Notification Service

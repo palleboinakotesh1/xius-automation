@@ -39,6 +39,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupFormListeners();
     setupModalListeners();
     setupProjectPlanListeners();
+    setupScopeUploadListeners();
 });
 
 function initProfiles() {
@@ -2403,11 +2404,53 @@ function renderProjectScopeView() {
         form.classList.remove("hidden");
         emptyState.classList.add("hidden");
         loadProjectScopeIntoForm(state.selectedScopeProjectName);
+        switchScopeTab('presales');
     } else {
         select.value = "";
         form.classList.add("hidden");
         emptyState.classList.remove("hidden");
     }
+    lucide.createIcons();
+}
+
+function switchScopeTab(tabName) {
+    state.activeScopeTab = tabName;
+
+    // Toggle sub-tab button styling
+    document.querySelectorAll("#tab-project-scope .form-tab-btn").forEach(btn => {
+        btn.classList.remove("active");
+        if (btn.getAttribute("data-scope-tab") === tabName) {
+            btn.classList.add("active");
+        }
+    });
+
+    // Toggle content panels
+    document.querySelectorAll("#tab-project-scope .form-tab-content").forEach(content => {
+        content.classList.remove("active");
+    });
+    const activePanel = document.getElementById(`scope-tab-${tabName}`);
+    if (activePanel) {
+        activePanel.classList.add("active");
+    }
+
+    // Toggle footer buttons
+    const tabs = ['presales', 'agreed', 'customer', 'milestones', 'internal', 'risk'];
+    const idx = tabs.indexOf(tabName);
+
+    const prevBtn = document.getElementById("btn-scope-prev");
+    const nextBtn = document.getElementById("btn-scope-next");
+    const saveBtn = document.getElementById("btn-save-scope");
+
+    if (prevBtn) prevBtn.disabled = (idx === 0);
+
+    if (idx === tabs.length - 1) {
+        if (nextBtn) nextBtn.style.display = "none";
+        if (saveBtn) saveBtn.style.display = "inline-flex";
+    } else {
+        if (nextBtn) nextBtn.style.display = "inline-flex";
+        if (saveBtn) saveBtn.style.display = "none";
+    }
+
     lucide.createIcons();
 }
 
@@ -2417,26 +2460,283 @@ function loadProjectScopeIntoForm(projName) {
         scope = {
             "Project": projName,
             "Pre-sales Document": "",
-            "Pre-sales Scope Prepare": "",
-            "Pre-sales Project Time Plan": "",
-            "Risk Register Party Expected": "",
-            "Customer Presentation Kick Off": "",
-            "Customer Presentation Weekly": "",
-            "Customer Presentation Monthly": "",
-            "Internal Reports Presentation Format": "",
-            "Project Progress": ""
+            "Components": "",
+            "Scope Prepare": "",
+            "Project Time Plan": "",
+            "Agreed Document": "",
+            "Project Plan": "",
+            "Scope In": "",
+            "Scope Out": "",
+            "Customer Presentation Type": "",
+            "Kick Off": "",
+            "Weekly": "",
+            "Monthly": "",
+            "Milestone Progress": "",
+            "Project Status": "",
+            "Monthly Status": "",
+            "Executive Presentation": "",
+            "Risk Register Party Expected": ""
         };
     }
 
     document.getElementById("scope-input-presales-doc").value = scope["Pre-sales Document"] || "";
-    document.getElementById("scope-input-presales-scope").value = scope["Pre-sales Scope Prepare"] || "";
-    document.getElementById("scope-input-presales-time").value = scope["Pre-sales Project Time Plan"] || "";
+    document.getElementById("scope-input-presales-scope").value = scope["Scope Prepare"] || "";
+    document.getElementById("scope-input-presales-time").value = scope["Project Time Plan"] || "";
+    document.getElementById("scope-input-agreed-doc").value = scope["Agreed Document"] || "";
+    document.getElementById("scope-input-project-plan").value = scope["Project Plan"] || "";
+    document.getElementById("scope-input-scope-in").value = scope["Scope In"] || "";
+    document.getElementById("scope-input-scope-out").value = scope["Scope Out"] || "";
+    document.getElementById("scope-input-customer-pres-type").value = scope["Customer Presentation Type"] || "";
+    document.getElementById("scope-input-cust-kickoff").value = scope["Kick Off"] || "";
+    document.getElementById("scope-input-cust-weekly").value = scope["Weekly"] || "";
+    document.getElementById("scope-input-cust-monthly").value = scope["Monthly"] || "";
+    document.getElementById("scope-input-milestone-progress").value = scope["Milestone Progress"] || "";
+    document.getElementById("scope-input-project-status").value = scope["Project Status"] || "";
+    document.getElementById("scope-input-monthly-status").value = scope["Monthly Status"] || "";
+    document.getElementById("scope-input-executive-presentation").value = scope["Executive Presentation"] || "";
     document.getElementById("scope-input-risk-party").value = scope["Risk Register Party Expected"] || "";
-    document.getElementById("scope-input-cust-kickoff").value = scope["Customer Presentation Kick Off"] || "";
-    document.getElementById("scope-input-cust-weekly").value = scope["Customer Presentation Weekly"] || "";
-    document.getElementById("scope-input-cust-monthly").value = scope["Customer Presentation Monthly"] || "";
-    document.getElementById("scope-input-internal-format").value = scope["Internal Reports Presentation Format"] || "";
-    document.getElementById("scope-input-progress").value = scope["Project Progress"] || "";
+
+    // Load components tags
+    const compStr = scope["Components"] || "";
+    state.extractedComponents = compStr ? compStr.split(",").map(c => c.trim()).filter(Boolean) : [];
+    renderScopeComponents();
+}
+
+function renderScopeComponents() {
+    const container = document.getElementById("scope-components-container");
+    if (!container) return;
+    container.innerHTML = "";
+
+    if (state.extractedComponents.length === 0) {
+        container.innerHTML = `<span class="detail-empty-text" style="padding: 10px; color: var(--secondary-color);">No components defined. Upload a pre-sales document or add custom tags below.</span>`;
+        return;
+    }
+
+    state.extractedComponents.forEach((comp, idx) => {
+        const chip = document.createElement("span");
+        chip.className = "resource-chip";
+        chip.style.backgroundColor = "rgba(59, 130, 246, 0.15)";
+        chip.style.border = "1px solid rgba(59, 130, 246, 0.3)";
+        chip.style.color = "#60a5fa";
+        chip.style.fontSize = "0.85rem";
+        chip.style.padding = "4px 8px";
+        chip.style.borderRadius = "4px";
+        chip.style.display = "inline-flex";
+        chip.style.alignItems = "center";
+        chip.style.gap = "6px";
+        chip.style.cursor = "pointer";
+        chip.innerHTML = `${escapeHtml(comp)} <span class="delete-tag" style="font-weight: bold; font-size: 0.8rem; color: #f87171;" data-index="${idx}">&times;</span>`;
+        
+        chip.querySelector(".delete-tag").addEventListener("click", (e) => {
+            e.stopPropagation();
+            state.extractedComponents.splice(idx, 1);
+            renderScopeComponents();
+        });
+        
+        container.appendChild(chip);
+    });
+}
+
+function setupScopeUploadListeners() {
+    // 1. Pre-sales uploader
+    const dropzonePresales = document.getElementById("scope-dropzone-presales");
+    const inputPresales = document.getElementById("scope-file-input-presales");
+    const btnPresales = document.getElementById("btn-browse-presales-file");
+
+    if (dropzonePresales && inputPresales && btnPresales) {
+        btnPresales.addEventListener("click", () => inputPresales.click());
+        inputPresales.addEventListener("change", (e) => {
+            if (e.target.files.length > 0) uploadDocument(e.target.files[0], "presales");
+        });
+        dropzonePresales.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            dropzonePresales.style.borderColor = "var(--primary-color)";
+            dropzonePresales.style.background = "rgba(255,255,255,0.05)";
+        });
+        const resetStyle = () => {
+            dropzonePresales.style.borderColor = "var(--border-color)";
+            dropzonePresales.style.background = "rgba(255,255,255,0.02)";
+        };
+        dropzonePresales.addEventListener("dragleave", resetStyle);
+        dropzonePresales.addEventListener("dragend", resetStyle);
+        dropzonePresales.addEventListener("drop", (e) => {
+            e.preventDefault();
+            resetStyle();
+            if (e.dataTransfer.files.length > 0) uploadDocument(e.dataTransfer.files[0], "presales");
+        });
+    }
+
+    // 2. Agreed Document uploader
+    const dropzoneAgreed = document.getElementById("scope-dropzone-agreed");
+    const inputAgreed = document.getElementById("scope-file-input-agreed");
+    const btnAgreed = document.getElementById("btn-browse-agreed-file");
+
+    if (dropzoneAgreed && inputAgreed && btnAgreed) {
+        btnAgreed.addEventListener("click", () => inputAgreed.click());
+        inputAgreed.addEventListener("change", (e) => {
+            if (e.target.files.length > 0) uploadDocument(e.target.files[0], "agreed");
+        });
+        dropzoneAgreed.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            dropzoneAgreed.style.borderColor = "var(--primary-color)";
+            dropzoneAgreed.style.background = "rgba(255,255,255,0.05)";
+        });
+        const resetStyle = () => {
+            dropzoneAgreed.style.borderColor = "var(--border-color)";
+            dropzoneAgreed.style.background = "rgba(255,255,255,0.02)";
+        };
+        dropzoneAgreed.addEventListener("dragleave", resetStyle);
+        dropzoneAgreed.addEventListener("dragend", resetStyle);
+        dropzoneAgreed.addEventListener("drop", (e) => {
+            e.preventDefault();
+            resetStyle();
+            if (e.dataTransfer.files.length > 0) uploadDocument(e.dataTransfer.files[0], "agreed");
+        });
+    }
+
+    // Add component tag manually
+    const addCompBtn = document.getElementById("btn-add-component");
+    const addCompInput = document.getElementById("input-add-component");
+
+    if (addCompBtn && addCompInput) {
+        const handler = () => {
+            const val = addCompInput.value.trim();
+            if (val && !state.extractedComponents.includes(val)) {
+                state.extractedComponents.push(val);
+                renderScopeComponents();
+                addCompInput.value = "";
+            }
+        };
+        addCompBtn.addEventListener("click", handler);
+        addCompInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                handler();
+            }
+        });
+    }
+
+    // Prev / Next button listeners
+    const prevBtn = document.getElementById("btn-scope-prev");
+    const nextBtn = document.getElementById("btn-scope-next");
+
+    if (prevBtn) {
+        prevBtn.addEventListener("click", () => {
+            const tabs = ['presales', 'agreed', 'customer', 'milestones', 'internal', 'risk'];
+            const idx = tabs.indexOf(state.activeScopeTab);
+            if (idx > 0) {
+                switchScopeTab(tabs[idx - 1]);
+            }
+        });
+    }
+
+    if (nextBtn) {
+        nextBtn.addEventListener("click", () => {
+            const tabs = ['presales', 'agreed', 'customer', 'milestones', 'internal', 'risk'];
+            const idx = tabs.indexOf(state.activeScopeTab);
+            if (idx < tabs.length - 1) {
+                switchScopeTab(tabs[idx + 1]);
+            }
+        });
+    }
+
+    // Sub-tab button listeners
+    document.querySelectorAll("#tab-project-scope .form-tab-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const tab = btn.getAttribute("data-scope-tab");
+            switchScopeTab(tab);
+        });
+    });
+}
+
+function uploadDocument(file, docType) {
+    const projName = state.selectedScopeProjectName;
+    if (!projName) {
+        showToast("Please select a project before uploading.", "error");
+        return;
+    }
+
+    const dropzone = document.getElementById(`scope-dropzone-${docType}`);
+    const progressBar = document.getElementById(`scope-upload-progress-${docType}`);
+    const progressFilename = document.getElementById(`scope-filename-${docType}`);
+    const progressPercentage = document.getElementById(`scope-percentage-${docType}`);
+    const progressFillBar = document.getElementById(`scope-bar-${docType}`);
+    const parsingStatus = document.getElementById(`scope-status-${docType}`);
+
+    if (!dropzone || !progressBar || !parsingStatus) return;
+
+    // Reset progress UI
+    dropzone.classList.add("hidden");
+    progressBar.classList.remove("hidden");
+    progressFilename.innerText = file.name;
+    progressPercentage.innerText = "0%";
+    progressFillBar.style.width = "0%";
+    parsingStatus.classList.add("hidden");
+
+    // Simulate progress upload
+    let progress = 0;
+    const interval = setInterval(() => {
+        progress += 10;
+        progressPercentage.innerText = progress + "%";
+        progressFillBar.style.width = progress + "%";
+
+        if (progress >= 100) {
+            clearInterval(interval);
+            parsingStatus.classList.remove("hidden");
+            executeUploadRequest(file, projName, docType);
+        }
+    }, 100);
+}
+
+async function executeUploadRequest(file, projName, docType) {
+    const dropzone = document.getElementById(`scope-dropzone-${docType}`);
+    const progressBar = document.getElementById(`scope-upload-progress-${docType}`);
+    const parsingStatus = document.getElementById(`scope-status-${docType}`);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("project", projName);
+    formData.append("doc_type", docType);
+
+    try {
+        const response = await fetch("/api/scope/upload", {
+            method: "POST",
+            body: formData
+        });
+
+        if (!response.ok) throw new Error("Document upload and parsing failed.");
+        const res = await response.json();
+
+        // Populate fields based on document type
+        const scope = res.scope;
+        if (scope) {
+            if (docType === "presales") {
+                document.getElementById("scope-input-presales-doc").value = scope["Pre-sales Document"] || "";
+                document.getElementById("scope-input-presales-scope").value = scope["Scope Prepare"] || "";
+                document.getElementById("scope-input-presales-time").value = scope["Project Time Plan"] || "";
+                document.getElementById("scope-input-project-status").value = scope["Project Status"] || "";
+                
+                // Populate components list
+                state.extractedComponents = res.components || [];
+                renderScopeComponents();
+            } else if (docType === "agreed") {
+                document.getElementById("scope-input-agreed-doc").value = scope["Agreed Document"] || "";
+                document.getElementById("scope-input-project-plan").value = scope["Project Plan"] || "";
+                document.getElementById("scope-input-scope-in").value = scope["Scope In"] || "";
+                document.getElementById("scope-input-scope-out").value = scope["Scope Out"] || "";
+            }
+        }
+
+        showToast(`Document "${file.name}" uploaded and parsed successfully.`, "success");
+    } catch (e) {
+        console.error(e);
+        showToast("Error processing document: " + e.message, "error");
+    } finally {
+        // Reset uploader form states
+        if (dropzone) dropzone.classList.remove("hidden");
+        if (progressBar) progressBar.classList.add("hidden");
+        if (parsingStatus) parsingStatus.classList.add("hidden");
+    }
 }
 
 async function saveProjectScopeData() {
@@ -2446,14 +2746,22 @@ async function saveProjectScopeData() {
     const updatedScope = {
         "Project": projName,
         "Pre-sales Document": document.getElementById("scope-input-presales-doc").value.trim(),
-        "Pre-sales Scope Prepare": document.getElementById("scope-input-presales-scope").value.trim(),
-        "Pre-sales Project Time Plan": document.getElementById("scope-input-presales-time").value.trim(),
-        "Risk Register Party Expected": document.getElementById("scope-input-risk-party").value.trim(),
-        "Customer Presentation Kick Off": document.getElementById("scope-input-cust-kickoff").value.trim(),
-        "Customer Presentation Weekly": document.getElementById("scope-input-cust-weekly").value.trim(),
-        "Customer Presentation Monthly": document.getElementById("scope-input-cust-monthly").value.trim(),
-        "Internal Reports Presentation Format": document.getElementById("scope-input-internal-format").value.trim(),
-        "Project Progress": document.getElementById("scope-input-progress").value.trim()
+        "Components": state.extractedComponents.join(","),
+        "Scope Prepare": document.getElementById("scope-input-presales-scope").value.trim(),
+        "Project Time Plan": document.getElementById("scope-input-presales-time").value.trim(),
+        "Agreed Document": document.getElementById("scope-input-agreed-doc").value.trim(),
+        "Project Plan": document.getElementById("scope-input-project-plan").value.trim(),
+        "Scope In": document.getElementById("scope-input-scope-in").value.trim(),
+        "Scope Out": document.getElementById("scope-input-scope-out").value.trim(),
+        "Customer Presentation Type": document.getElementById("scope-input-customer-pres-type").value.trim(),
+        "Kick Off": document.getElementById("scope-input-cust-kickoff").value.trim(),
+        "Weekly": document.getElementById("scope-input-cust-weekly").value.trim(),
+        "Monthly": document.getElementById("scope-input-cust-monthly").value.trim(),
+        "Milestone Progress": document.getElementById("scope-input-milestone-progress").value.trim(),
+        "Project Status": document.getElementById("scope-input-project-status").value.trim(),
+        "Monthly Status": document.getElementById("scope-input-monthly-status").value.trim(),
+        "Executive Presentation": document.getElementById("scope-input-executive-presentation").value.trim(),
+        "Risk Register Party Expected": document.getElementById("scope-input-risk-party").value.trim()
     };
 
     // Update state.scopes in place
@@ -2461,9 +2769,11 @@ async function saveProjectScopeData() {
     state.scopes.push(updatedScope);
 
     const saveBtn = document.getElementById("btn-save-scope");
-    const originalHTML = saveBtn.innerHTML;
-    saveBtn.disabled = true;
-    saveBtn.innerHTML = "<i data-lucide='loader' class='icon anim-spin'></i> Saving...";
+    const originalHTML = saveBtn ? saveBtn.innerHTML : "Save Scope Changes";
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = "<i data-lucide='loader' class='icon anim-spin'></i> Saving...";
+    }
     lucide.createIcons();
 
     try {
@@ -2492,8 +2802,10 @@ async function saveProjectScopeData() {
         console.error(e);
         showToast("Failed to save project scope: " + e.message, "error");
     } finally {
-        saveBtn.disabled = false;
-        saveBtn.innerHTML = originalHTML;
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalHTML;
+        }
         lucide.createIcons();
     }
 }

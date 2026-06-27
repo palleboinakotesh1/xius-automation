@@ -124,6 +124,162 @@ def parse_pdf_plan_with_hierarchy(path):
         }
 
 
+def read_document_text(file_path, filename):
+    text = ""
+    ext = os.path.splitext(filename)[1].lower()
+    
+    if ext == ".pdf":
+        try:
+            with pdfplumber.open(file_path) as pdf:
+                for page in pdf.pages:
+                    t = page.extract_text()
+                    if t:
+                        text += t + "\n"
+        except Exception as e:
+            print(f"Error extracting text from PDF: {e}")
+    elif ext == ".docx":
+        try:
+            import docx
+            doc = docx.Document(file_path)
+            for para in doc.paragraphs:
+                text += para.text + "\n"
+        except Exception as e:
+            print(f"Error extracting text from DOCX: {e}")
+    else: # Fallback to txt
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read()
+        except Exception as e:
+            print(f"Error reading TXT file: {e}")
+    return text
+
+
+def extract_scope_and_components(file_path, filename):
+    text = read_document_text(file_path, filename)
+
+    # Heuristics for components list
+    common_components = [
+        "Billing", "Provisioning", "CRM", "SMS", "USSD", "Gateway", "Portal", 
+        "Database", "Reporting", "Analytics", "Dashboard", "Charging", "BSS", 
+        "OSS", "Integration", "API", "Security", "HLR", "HSS", "PCRF", "VMS", 
+        "IVR", "MMSC", "Notification", "E-Commerce", "Mobile App"
+    ]
+    
+    found_components = []
+    
+    # Check for direct keyword matches in text
+    for comp in common_components:
+        pattern = r'\b' + re.escape(comp) + r'\b'
+        if re.search(pattern, text, re.IGNORECASE):
+            found_components.append(comp + " Module")
+
+    # Look for lists or lines after headers like "Components", "Scope", "Modules"
+    lines = text.split("\n")
+    collect_bullets = False
+    bullet_patterns = [r'^\s*-\s*(.+)', r'^\s*\*\s*(.+)', r'^\s*•\s*(.+)', r'^\s*\d+\.\s*(.+)']
+    
+    for line in lines:
+        cleaned = line.strip()
+        if not cleaned:
+            continue
+        
+        # Check if line looks like a header section
+        lower_line = cleaned.lower()
+        if any(h in lower_line for h in ["components list", "modules included", "scope items", "systems list", "key modules"]):
+            collect_bullets = True
+            continue
+        elif collect_bullets and cleaned.endswith(":") and len(cleaned) < 30:
+            # Stop collecting if we hit another header
+            collect_bullets = False
+            
+        if collect_bullets:
+            for pat in bullet_patterns:
+                m = re.match(pat, cleaned)
+                if m:
+                    bullet_text = m.group(1).strip()
+                    if 3 < len(bullet_text) < 50:
+                        if bullet_text not in found_components:
+                            found_components.append(bullet_text)
+                    break
+                    
+    # Clean up and ensure unique components list
+    if not found_components:
+        found_components = ["Core Engine", "Database Integration", "User Authentication", "Web Dashboard Portal"]
+    else:
+        # De-duplicate
+        unique_list = []
+        for x in found_components:
+            if x not in unique_list:
+                unique_list.append(x)
+        found_components = unique_list[:12] # Limit to top 12
+
+    # Formulate parsed scope fields
+    scope_fields = {
+        "Pre-sales Document": filename,
+        "Scope Prepare": "Extracted from " + filename,
+        "Project Time Plan": "Drafted based on " + filename,
+        "Project Status": f"Pre-sales phase initiated. Detected {len(found_components)} project modules."
+    }
+
+    return scope_fields, found_components
+
+
+def extract_agreed_document_details(file_path, filename):
+    text = read_document_text(file_path, filename)
+    
+    project_plan = ""
+    scope_in = ""
+    scope_out = ""
+    
+    lines = text.split("\n")
+    current_section = None
+    
+    for line in lines:
+        cleaned = line.strip()
+        if not cleaned:
+            continue
+        
+        lower_line = cleaned.lower()
+        # Section headers detection
+        if any(h in lower_line for h in ["project plan", "project timeline", "milestones timeline", "schedule"]):
+            current_section = "plan"
+            continue
+        elif any(h in lower_line for h in ["scope in", "in scope", "deliverables included", "inclusions"]):
+            current_section = "in"
+            continue
+        elif any(h in lower_line for h in ["scope out", "out of scope", "exclusions", "not included"]):
+            current_section = "out"
+            continue
+        elif cleaned.endswith(":") and len(cleaned) < 25:
+            current_section = None
+            continue
+            
+        if current_section == "plan":
+            project_plan += cleaned + "\n"
+        elif current_section == "in":
+            scope_in += cleaned + "\n"
+        elif current_section == "out":
+            scope_out += cleaned + "\n"
+            
+    # Fallbacks if sections not explicitly found
+    if not project_plan.strip():
+        time_lines = [l.strip() for l in lines if any(k in l.lower() for k in ["week", "month", "milestone", "date", "phase"])]
+        project_plan = "\n".join(time_lines[:5]) if time_lines else "Project baseline plan drafted based on " + filename
+    if not scope_in.strip():
+        in_lines = [l.strip() for l in lines if any(k in l.lower() for k in ["deliver", "require", "crm", "billing", "system", "portal"])]
+        scope_in = "\n".join(in_lines[:5]) if in_lines else "Standard project delivery scope."
+    if not scope_out.strip():
+        out_lines = [l.strip() for l in lines if any(k in l.lower() for k in ["exclude", "third-party", "customization", "not responsible"])]
+        scope_out = "\n".join(out_lines[:5]) if out_lines else "Any item not explicitly stated in the In-Scope section is considered out of scope."
+        
+    return {
+        "Agreed Document": filename,
+        "Project Plan": project_plan.strip()[:1000],
+        "Scope In": scope_in.strip()[:1000],
+        "Scope Out": scope_out.strip()[:1000]
+    }
+
+
 class PMORequestHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         # Silence default logging to keep terminal output clean
@@ -337,9 +493,26 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                 df_decisions = df_decisions[d_cols]
 
                 # Scopes
-                s_cols = ["Project", "Pre-sales Document", "Pre-sales Scope Prepare", "Pre-sales Project Time Plan", 
-                          "Risk Register Party Expected", "Customer Presentation Kick Off", "Customer Presentation Weekly", 
-                          "Customer Presentation Monthly", "Internal Reports Presentation Format", "Project Progress"]
+                s_cols = [
+                    "Project",
+                    "Pre-sales Document",
+                    "Components",
+                    "Scope Prepare",
+                    "Project Time Plan",
+                    "Agreed Document",
+                    "Project Plan",
+                    "Scope In",
+                    "Scope Out",
+                    "Customer Presentation Type",
+                    "Kick Off",
+                    "Weekly",
+                    "Monthly",
+                    "Milestone Progress",
+                    "Project Status",
+                    "Monthly Status",
+                    "Executive Presentation",
+                    "Risk Register Party Expected"
+                ]
                 for col in s_cols:
                     if col not in df_scopes.columns:
                         df_scopes[col] = None
@@ -402,6 +575,83 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                     self.send_error_response(500, "The Excel database file is currently locked. Please close it if it is open in Microsoft Excel and try again.")
                 else:
                     self.send_error_response(500, f"Error processing submission: {str(e)}")
+            return
+
+        elif path == "/api/scope/upload":
+            try:
+                content_type = self.headers.get('Content-Type', '')
+                if not content_type.startswith('multipart/form-data'):
+                    self.send_error_response(400, "Content-Type must be multipart/form-data")
+                    return
+                
+                # Extract boundary
+                boundary = content_type.split("boundary=")[1].encode()
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length)
+                
+                # Split body by boundary to find the file and parameters
+                parts = body.split(b"--" + boundary)
+                file_data = None
+                filename = "document.pdf"
+                project_name = ""
+                doc_type = "presales"
+                
+                for part in parts:
+                    if b"name=\"project\"" in part:
+                        part_lines = part.split(b"\r\n")
+                        for line in part_lines:
+                            line_stripped = line.strip()
+                            if line_stripped and not line_stripped.startswith(b"Content-"):
+                                project_name = line_stripped.decode('utf-8')
+                                break
+                    elif b"name=\"doc_type\"" in part:
+                        part_lines = part.split(b"\r\n")
+                        for line in part_lines:
+                            line_stripped = line.strip()
+                            if line_stripped and not line_stripped.startswith(b"Content-"):
+                                doc_type = line_stripped.decode('utf-8')
+                                break
+                    elif b"filename=" in part:
+                        header_end = part.find(b"\r\n\r\n")
+                        fn_match = re.search(b'filename="([^"]+)"', part)
+                        if fn_match:
+                            filename = fn_match.group(1).decode('utf-8')
+                        if header_end != -1:
+                            file_data = part[header_end+4:-2]
+                
+                if not file_data:
+                    self.send_error_response(400, "No file uploaded")
+                    return
+                
+                # Save temp file
+                temp_path = "temp_scope" + os.path.splitext(filename)[1].lower()
+                with open(temp_path, "wb") as f:
+                    f.write(file_data)
+                
+                # Parse
+                scope_fields = {}
+                components = []
+                if doc_type == "agreed":
+                    scope_fields = extract_agreed_document_details(temp_path, filename)
+                else:
+                    scope_fields, components = extract_scope_and_components(temp_path, filename)
+                
+                scope_fields["Project"] = project_name
+                
+                # Clean up temp file
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                
+                self.send_json_response(200, {
+                    "status": "success",
+                    "scope": scope_fields,
+                    "components": components,
+                    "doc_type": doc_type
+                })
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                self.send_error_response(500, f"Error parsing document: {str(e)}")
             return
 
         elif path == "/api/plan/upload":

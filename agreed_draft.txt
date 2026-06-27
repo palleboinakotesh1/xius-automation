@@ -1,0 +1,19 @@
+XIUS AGREED WORK BASES
+Project: Vivo Infrastructure
+
+PROJECT PLAN SECTION
+- Baseline schedule setup completed in Week 1.
+- Staging environment ready by Week 4.
+- Code deploy to production in Week 12.
+
+SCOPE IN SECTION
+The delivery team is responsible for:
+- Building Core Billing APIs and CRM database sync.
+- Provisioning microservice deployment on cloud.
+- Setup weekly reporting template for stakeholders.
+
+SCOPE OUT SECTION
+This project does not include:
+- Hardware server procurement (customer provided).
+- Support for third-party billing providers.
+- Data migration of legacy accounts.
