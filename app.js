@@ -102,11 +102,14 @@ document.addEventListener("DOMContentLoaded", () => {
         if (loginForm) {
             loginForm.addEventListener("submit", async (e) => {
                 e.preventDefault();
-                const email = document.getElementById("login-email").value.trim();
+                let username = document.getElementById("login-email").value.trim();
                 const password = document.getElementById("login-password").value;
                 const submitBtn = document.getElementById("btn-login-submit");
                 
-                if (!email || !password) return;
+                if (!username || !password) return;
+                
+                // Map username to standard email format if domain is missing
+                const email = username.includes("@") ? username : `${username}@xius.com`;
                 
                 const originalHTML = submitBtn.innerHTML;
                 submitBtn.disabled = true;
@@ -2077,7 +2080,7 @@ function setupProjectPlanListeners() {
             const formData = new FormData();
             formData.append("file", selectedFile);
 
-            const response = await authenticatedFetch(/api/plan/upload", {
+            const response = await authenticatedFetch("/api/plan/upload", {
                 method: "POST",
                 body: formData
             });
@@ -2808,7 +2811,7 @@ async function executeUploadRequest(file, projName, docType) {
     formData.append("doc_type", docType);
 
     try {
-        const response = await authenticatedFetch(/api/scope/upload", {
+        const response = await authenticatedFetch("/api/scope/upload", {
             method: "POST",
             body: formData
         });
