@@ -2566,6 +2566,101 @@ function switchScopeTab(tabName) {
     lucide.createIcons();
 }
 
+function renderPPTMilestonesTable(milestones) {
+    const tbody = document.getElementById("scope-ppt-milestones-body");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    
+    if (!milestones || !Array.isArray(milestones) || milestones.length === 0) {
+        // default milestone list
+        milestones = [
+            {"Activity": "Kick-off meeting", "ETA": "Mar-24", "Rev": "", "UpdatedPlan": "", "Status": "Completed", "Comments": ""},
+            {"Activity": "BSS Demo workshop", "ETA": "Mar-24", "Rev": "", "UpdatedPlan": "", "Status": "Completed", "Comments": ""},
+            {"Activity": "Input data from Liv.ing", "ETA": "May-24", "Rev": "", "UpdatedPlan": "", "Status": "Completed", "Comments": ""},
+            {"Activity": "SOW preparation & Sign off", "ETA": "Jul-24", "Rev": "", "UpdatedPlan": "", "Status": "Completed", "Comments": ""},
+            {"Activity": "AWS Infra Deployment (Testing)", "ETA": "Jul-24", "Rev": "", "UpdatedPlan": "", "Status": "Completed", "Comments": ""},
+            {"Activity": "AWS Production re-deployment", "ETA": "Oct-24", "Rev": "Dec-25", "UpdatedPlan": "May-25", "Status": "On Track", "Comments": ""},
+            {"Activity": "Core integration", "ETA": "Oct-24", "Rev": "Jan-25", "UpdatedPlan": "Oct-25", "Status": "On Track", "Comments": ""},
+            {"Activity": "E2E API - Integrations", "ETA": "Oct-24", "Rev": "Jan-25", "UpdatedPlan": "Oct-25", "Status": "On Track", "Comments": ""},
+            {"Activity": "Integration and Testing", "ETA": "Oct-24", "Rev": "Jan-25", "UpdatedPlan": "Dec-25", "Status": "At Risk", "Comments": ""},
+            {"Activity": "UAT", "ETA": "Oct-24", "Rev": "Jan-25", "UpdatedPlan": "Dec-25", "Status": "At Risk", "Comments": ""},
+            {"Activity": "Go-live", "ETA": "Oct-24", "Rev": "Jan-25", "UpdatedPlan": "Dec-25", "Status": "At Risk", "Comments": ""},
+            {"Activity": "Training and Handover", "ETA": "Oct-24", "Rev": "Jan-25", "UpdatedPlan": "Dec-25", "Status": "At Risk", "Comments": ""},
+        ];
+    }
+    
+    state.pptMilestones = milestones;
+    
+    milestones.forEach((row, idx) => {
+        const tr = document.createElement("tr");
+        
+        // Activity label
+        const tdActivity = document.createElement("td");
+        tdActivity.style.padding = "6px 8px";
+        tdActivity.innerText = row.Activity || "";
+        tr.appendChild(tdActivity);
+        
+        // ETA input
+        const tdETA = document.createElement("td");
+        tdETA.style.padding = "4px";
+        const inputETA = document.createElement("input");
+        inputETA.type = "text";
+        inputETA.className = "form-input";
+        inputETA.style.padding = "4px";
+        inputETA.style.fontSize = "0.75rem";
+        inputETA.value = row.ETA || "";
+        inputETA.addEventListener("change", (e) => {
+            state.pptMilestones[idx].ETA = e.target.value;
+        });
+        tdETA.appendChild(inputETA);
+        tr.appendChild(tdETA);
+        
+        // Updated ETA input
+        const tdUpdated = document.createElement("td");
+        tdUpdated.style.padding = "4px";
+        const inputUpdated = document.createElement("input");
+        inputUpdated.type = "text";
+        inputUpdated.className = "form-input";
+        inputUpdated.style.padding = "4px";
+        inputUpdated.style.fontSize = "0.75rem";
+        inputUpdated.value = row.UpdatedPlan || row.Rev || "";
+        inputUpdated.addEventListener("change", (e) => {
+            state.pptMilestones[idx].UpdatedPlan = e.target.value;
+            state.pptMilestones[idx].Rev = e.target.value;
+        });
+        tdUpdated.appendChild(inputUpdated);
+        tr.appendChild(tdUpdated);
+        
+        // Status select
+        const tdStatus = document.createElement("td");
+        tdStatus.style.padding = "4px";
+        const selectStatus = document.createElement("select");
+        selectStatus.className = "form-select";
+        selectStatus.style.padding = "2px 4px";
+        selectStatus.style.fontSize = "0.75rem";
+        selectStatus.style.height = "auto";
+        selectStatus.style.width = "100%";
+        
+        const opts = ["Completed", "On Track", "At Risk", "Off Track"];
+        opts.forEach(o => {
+            const opt = document.createElement("option");
+            opt.value = o;
+            opt.innerText = o;
+            if (row.Status === o || (o === "On Track" && !row.Status)) {
+                opt.selected = true;
+            }
+            selectStatus.appendChild(opt);
+        });
+        selectStatus.addEventListener("change", (e) => {
+            state.pptMilestones[idx].Status = e.target.value;
+        });
+        tdStatus.appendChild(selectStatus);
+        tr.appendChild(tdStatus);
+        
+        tbody.appendChild(tr);
+    });
+}
+
 function loadProjectScopeIntoForm(projName) {
     let scope = state.scopes.find(s => s.Project === projName);
     if (!scope) {
@@ -2607,6 +2702,26 @@ function loadProjectScopeIntoForm(projName) {
     document.getElementById("scope-input-monthly-status").value = scope["Monthly Status"] || "";
     document.getElementById("scope-input-executive-presentation").value = scope["Executive Presentation"] || "";
     document.getElementById("scope-input-risk-party").value = scope["Risk Register Party Expected"] || "";
+
+    // Set PowerPoint Meta Fields
+    const todayStr = new Date().toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'}).replace(/ /g, '-');
+    document.getElementById("scope-input-review-date").value = scope["Project Time Plan"] || todayStr;
+    document.getElementById("scope-input-ppt-manager").value = scope["Project Plan"] || "Madhava Reddy Gorreegala";
+    document.getElementById("scope-input-ppt-updates").value = scope["Scope In"] || "";
+    document.getElementById("scope-input-ppt-risks").value = scope["Scope Out"] || "";
+    document.getElementById("scope-input-ppt-support").value = scope["Customer Presentation Type"] || "";
+
+    // Parse milestone list from Risk Register Party Expected column
+    let milestones = [];
+    try {
+        const mStr = scope["Risk Register Party Expected"];
+        if (mStr && mStr.trim().startsWith("[")) {
+            milestones = JSON.parse(mStr);
+        }
+    } catch(e) {
+        console.error("Error parsing milestones list", e);
+    }
+    renderPPTMilestonesTable(milestones);
 
     // Load components tags
     const compStr = scope["Components"] || "";
@@ -2759,6 +2874,68 @@ function setupScopeUploadListeners() {
             switchScopeTab(tab);
         });
     });
+
+    // PPT Generation click handler
+    const generatePptBtn = document.getElementById("btn-generate-ppt");
+    if (generatePptBtn) {
+        generatePptBtn.addEventListener("click", async () => {
+            const projName = state.selectedScopeProjectName;
+            if (!projName) {
+                showToast("Please select a project first.", "error");
+                return;
+            }
+            
+            const reviewDate = document.getElementById("scope-input-review-date").value.trim();
+            const projectManager = document.getElementById("scope-input-ppt-manager").value.trim();
+            const latestUpdates = document.getElementById("scope-input-ppt-updates").value.trim();
+            const risks = document.getElementById("scope-input-ppt-risks").value.trim();
+            const supportRequired = document.getElementById("scope-input-ppt-support").value.trim();
+            
+            const payload = {
+                reviewDate,
+                projectManager,
+                latestUpdates,
+                risks,
+                supportRequired,
+                milestones: state.pptMilestones || []
+            };
+            
+            const originalHTML = generatePptBtn.innerHTML;
+            generatePptBtn.disabled = true;
+            generatePptBtn.innerHTML = "<i data-lucide='loader' class='icon anim-spin'></i> Generating PPT...";
+            lucide.createIcons();
+            
+            try {
+                const response = await authenticatedFetch("/api/ppt/generate", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) throw new Error("PPT generation failed on server.");
+                
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `Liv_ing_Project_Weekly_Review_${reviewDate}.pptx`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+                showToast("PowerPoint report generated and downloaded successfully!", "success");
+            } catch (err) {
+                console.error(err);
+                showToast(err.message || "Failed to generate PPT presentation.", "error");
+            } finally {
+                generatePptBtn.disabled = false;
+                generatePptBtn.innerHTML = originalHTML;
+                lucide.createIcons();
+            }
+        });
+    }
 }
 
 function uploadDocument(file, docType) {
@@ -2828,14 +3005,27 @@ async function executeUploadRequest(file, projName, docType) {
                 document.getElementById("scope-input-presales-time").value = scope["Project Time Plan"] || "";
                 document.getElementById("scope-input-project-status").value = scope["Project Status"] || "";
                 
+                // Set PPT fields
+                const todayStr = new Date().toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'}).replace(/ /g, '-');
+                document.getElementById("scope-input-review-date").value = scope["Project Time Plan"] || todayStr;
+                document.getElementById("scope-input-ppt-manager").value = scope["Project Manager"] || "Madhava Reddy Gorreegala";
+                document.getElementById("scope-input-ppt-updates").value = scope["Latest Updates"] || "";
+                document.getElementById("scope-input-ppt-risks").value = scope["Risks Dependencies"] || "";
+                document.getElementById("scope-input-ppt-support").value = scope["Support Required"] || "";
+                
+                let milestones = [];
+                try {
+                    if (scope["Milestones"]) {
+                        milestones = JSON.parse(scope["Milestones"]);
+                    }
+                } catch(err) {
+                    console.error("Error parsing parsed milestones", err);
+                }
+                renderPPTMilestonesTable(milestones);
+
                 // Populate components list
                 state.extractedComponents = res.components || [];
                 renderScopeComponents();
-            } else if (docType === "agreed") {
-                document.getElementById("scope-input-agreed-doc").value = scope["Agreed Document"] || "";
-                document.getElementById("scope-input-project-plan").value = scope["Project Plan"] || "";
-                document.getElementById("scope-input-scope-in").value = scope["Scope In"] || "";
-                document.getElementById("scope-input-scope-out").value = scope["Scope Out"] || "";
             }
         }
 
@@ -2860,20 +3050,20 @@ async function saveProjectScopeData() {
         "Pre-sales Document": document.getElementById("scope-input-presales-doc").value.trim(),
         "Components": state.extractedComponents.join(","),
         "Scope Prepare": document.getElementById("scope-input-presales-scope").value.trim(),
-        "Project Time Plan": document.getElementById("scope-input-presales-time").value.trim(),
-        "Agreed Document": document.getElementById("scope-input-agreed-doc").value.trim(),
-        "Project Plan": document.getElementById("scope-input-project-plan").value.trim(),
-        "Scope In": document.getElementById("scope-input-scope-in").value.trim(),
-        "Scope Out": document.getElementById("scope-input-scope-out").value.trim(),
-        "Customer Presentation Type": document.getElementById("scope-input-customer-pres-type").value.trim(),
-        "Kick Off": document.getElementById("scope-input-cust-kickoff").value.trim(),
-        "Weekly": document.getElementById("scope-input-cust-weekly").value.trim(),
-        "Monthly": document.getElementById("scope-input-cust-monthly").value.trim(),
+        "Project Time Plan": document.getElementById("scope-input-review-date").value.trim(),
+        "Agreed Document": "",
+        "Project Plan": document.getElementById("scope-input-ppt-manager").value.trim(),
+        "Scope In": document.getElementById("scope-input-ppt-updates").value.trim(),
+        "Scope Out": document.getElementById("scope-input-ppt-risks").value.trim(),
+        "Customer Presentation Type": document.getElementById("scope-input-ppt-support").value.trim(),
+        "Kick Off": "",
+        "Weekly": "",
+        "Monthly": "",
         "Milestone Progress": document.getElementById("scope-input-milestone-progress").value.trim(),
         "Project Status": document.getElementById("scope-input-project-status").value.trim(),
         "Monthly Status": document.getElementById("scope-input-monthly-status").value.trim(),
         "Executive Presentation": document.getElementById("scope-input-executive-presentation").value.trim(),
-        "Risk Register Party Expected": document.getElementById("scope-input-risk-party").value.trim()
+        "Risk Register Party Expected": JSON.stringify(state.pptMilestones || [])
     };
 
     // Update state.scopes in place

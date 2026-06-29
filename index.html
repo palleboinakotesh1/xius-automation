@@ -766,25 +766,70 @@
 
                         <!-- Step 3: Customer Presentation -->
                         <div class="form-tab-content" id="scope-tab-customer">
-                            <div class="form-section-card bg-glass card-shadow" style="padding: 25px; margin-bottom: 0;">
-                                <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--primary-color); display: flex; align-items: center; gap: 8px; margin-bottom: 20px;">
-                                    <i data-lucide="presentation" style="width: 20px; height: 20px; color: var(--primary-color);"></i> Customer Presentation & Cadence
-                                </h3>
-                                <div class="form-group" style="margin-bottom: 15px;">
-                                    <label for="scope-input-customer-pres-type" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Customer Presentation Type (Format/Style)</label>
-                                    <input type="text" id="scope-input-customer-pres-type" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                            <!-- Hidden inputs to prevent JS lookup errors for old fields -->
+                            <input type="hidden" id="scope-input-customer-pres-type">
+                            <input type="hidden" id="scope-input-cust-kickoff">
+                            <input type="hidden" id="scope-input-cust-weekly">
+                            <input type="hidden" id="scope-input-cust-monthly">
+
+                            <div class="grid-2-cols" style="gap: 20px;">
+                                <!-- Left Column: PPT Meta & Text Blocks -->
+                                <div class="form-section-card bg-glass card-shadow" style="padding: 25px; margin-bottom: 0;">
+                                    <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--primary-color); display: flex; align-items: center; gap: 8px; margin-bottom: 20px;">
+                                        <i data-lucide="presentation" style="width: 20px; height: 20px; color: var(--primary-color);"></i> Weekly Review PPT Generator
+                                    </h3>
+                                    
+                                    <div class="grid-2-cols" style="gap: 15px; margin-bottom: 15px;">
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label for="scope-input-review-date" style="display: block; font-size: 0.82rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 4px;">Review Date</label>
+                                            <input type="text" id="scope-input-review-date" class="form-input" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);" placeholder="E.g. 04-Mar-2026">
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label for="scope-input-ppt-manager" style="display: block; font-size: 0.82rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 4px;">Program Manager</label>
+                                            <input type="text" id="scope-input-ppt-manager" class="form-input" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);" placeholder="Madhava Reddy Gorreegala">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group" style="margin-bottom: 15px;">
+                                        <label for="scope-input-ppt-updates" style="display: block; font-size: 0.82rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 4px;">Latest Updates (One per line)</label>
+                                        <textarea id="scope-input-ppt-updates" class="form-input" style="width: 100%; min-height: 90px; padding: 8px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.85rem; resize: vertical;" placeholder="Enter slide updates..."></textarea>
+                                    </div>
+
+                                    <div class="form-group" style="margin-bottom: 15px;">
+                                        <label for="scope-input-ppt-risks" style="display: block; font-size: 0.82rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 4px;">Risk and Dependencies (One per line)</label>
+                                        <textarea id="scope-input-ppt-risks" class="form-input" style="width: 100%; min-height: 70px; padding: 8px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.85rem; resize: vertical;" placeholder="Enter dependencies..."></textarea>
+                                    </div>
+
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label for="scope-input-ppt-support" style="display: block; font-size: 0.82rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 4px;">Support Required (One per line)</label>
+                                        <textarea id="scope-input-ppt-support" class="form-input" style="width: 100%; min-height: 70px; padding: 8px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.85rem; resize: vertical;" placeholder="Enter support requests..."></textarea>
+                                    </div>
                                 </div>
-                                <div class="form-group" style="margin-bottom: 15px;">
-                                    <label for="scope-input-cust-kickoff" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Kick Off Meeting Details</label>
-                                    <input type="text" id="scope-input-cust-kickoff" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
-                                </div>
-                                <div class="form-group" style="margin-bottom: 15px;">
-                                    <label for="scope-input-cust-weekly" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Weekly Presentation Details</label>
-                                    <input type="text" id="scope-input-cust-weekly" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
-                                </div>
-                                <div class="form-group" style="margin-bottom: 0;">
-                                    <label for="scope-input-cust-monthly" style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); margin-bottom: 6px;">Monthly Presentation Details</label>
-                                    <input type="text" id="scope-input-cust-monthly" class="form-input" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+
+                                <!-- Right Column: PPT Milestone Editor Table -->
+                                <div class="form-section-card bg-glass card-shadow" style="padding: 20px; margin-bottom: 0; display: flex; flex-direction: column;">
+                                    <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-color); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                                        <i data-lucide="milestone" style="width: 18px; height: 18px; color: var(--primary-color);"></i> Milestone Schedule Editor
+                                    </h4>
+                                    <div class="table-container" style="flex-grow: 1; max-height: 380px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                                        <table class="styled-table" id="scope-ppt-milestones-table" style="font-size: 0.8rem;">
+                                            <thead>
+                                                <tr>
+                                                    <th style="padding: 6px 8px;">Activity</th>
+                                                    <th style="padding: 6px 8px; width: 75px;">ETA</th>
+                                                    <th style="padding: 6px 8px; width: 75px;">Updated</th>
+                                                    <th style="padding: 6px 8px; width: 95px;">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="scope-ppt-milestones-body">
+                                                <!-- Dynamic editor rows -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    
+                                    <button type="button" class="btn btn-primary" id="btn-generate-ppt" style="margin-top: 15px; width: 100%; justify-content: center; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; padding: 12px;">
+                                        <i data-lucide="download" style="width: 18px; height: 18px;"></i> Generate PowerPoint Report
+                                    </button>
                                 </div>
                             </div>
                         </div>

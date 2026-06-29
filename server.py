@@ -178,7 +178,6 @@ def extract_scope_and_components(file_path, filename):
         if re.search(pattern, text, re.IGNORECASE):
             found_components.append(comp + " Module")
 
-    # Look for lists or lines after headers like "Components", "Scope", "Modules"
     lines = text.split("\n")
     collect_bullets = False
     bullet_patterns = [r'^\s*-\s*(.+)', r'^\s*\*\s*(.+)', r'^\s*•\s*(.+)', r'^\s*\d+\.\s*(.+)']
@@ -188,13 +187,11 @@ def extract_scope_and_components(file_path, filename):
         if not cleaned:
             continue
         
-        # Check if line looks like a header section
         lower_line = cleaned.lower()
         if any(h in lower_line for h in ["components list", "modules included", "scope items", "systems list", "key modules"]):
             collect_bullets = True
             continue
         elif collect_bullets and cleaned.endswith(":") and len(cleaned) < 30:
-            # Stop collecting if we hit another header
             collect_bullets = False
             
         if collect_bullets:
@@ -211,19 +208,141 @@ def extract_scope_and_components(file_path, filename):
     if not found_components:
         found_components = ["Core Engine", "Database Integration", "User Authentication", "Web Dashboard Portal"]
     else:
-        # De-duplicate
         unique_list = []
         for x in found_components:
             if x not in unique_list:
                 unique_list.append(x)
         found_components = unique_list[:12] # Limit to top 12
 
+    # Heuristic for Project Manager
+    pm_name = "Madhava Reddy Gorreegala"
+    pm_match = re.search(r'(?:Project|Program)\s+Manager\s*[:\-]?\s*([^\n\r]+)', text, re.IGNORECASE)
+    if pm_match:
+        pm_name = pm_match.group(1).strip()
+    else:
+        for line in lines:
+            if "manager" in line.lower() and len(line.strip()) < 50:
+                parts = re.split(r'[:\-]', line)
+                if len(parts) > 1:
+                    pm_name = parts[-1].strip()
+                    break
+
+    # Heuristic for Latest Updates
+    updates = []
+    collect_updates = False
+    for line in lines:
+        cleaned = line.strip()
+        if not cleaned:
+            continue
+        if any(h in cleaned.lower() for h in ["latest updates", "progress update", "weekly updates", "recent updates", "accomplishments"]):
+            collect_updates = True
+            continue
+        elif collect_updates and (cleaned.endswith(":") or any(h in cleaned.lower() for h in ["risk", "milestone", "support", "planned activities"])):
+            collect_updates = False
+            
+        if collect_updates:
+            for pat in bullet_patterns:
+                m = re.match(pat, cleaned)
+                if m:
+                    updates.append(m.group(1).strip())
+                    break
+            else:
+                if len(cleaned) > 15:
+                    updates.append(cleaned)
+    if not updates:
+        updates = [
+            "Customer onboarding via the Mobile App has been successfully completed",
+            "Airalo (eSIM) integration and testing have been completed",
+            "Updated APIs shared with the client for integration",
+            "All core BSS services are working fine"
+        ]
+
+    # Heuristic for Risks & Dependencies
+    risks = []
+    collect_risks = False
+    for line in lines:
+        cleaned = line.strip()
+        if not cleaned:
+            continue
+        if any(h in cleaned.lower() for h in ["risk and dependencies", "risks and dependencies", "key risks", "risk register", "risk & dependencies"]):
+            collect_risks = True
+            continue
+        elif collect_risks and (cleaned.endswith(":") or any(h in cleaned.lower() for h in ["latest updates", "milestone", "support", "planned"])):
+            collect_risks = False
+            
+        if collect_risks:
+            for pat in bullet_patterns:
+                m = re.match(pat, cleaned)
+                if m:
+                    risks.append(m.group(1).strip())
+                    break
+            else:
+                if len(cleaned) > 15:
+                    risks.append(cleaned)
+    if not risks:
+        risks = ["Changes/additions in the requirements are delaying the production integrations"]
+
+    # Heuristic for Support Required
+    support = []
+    collect_support = False
+    for line in lines:
+        cleaned = line.strip()
+        if not cleaned:
+            continue
+        if any(h in cleaned.lower() for h in ["support required", "help needed", "escalations", "support request"]):
+            collect_support = True
+            continue
+        elif collect_support and (cleaned.endswith(":") or any(h in cleaned.lower() for h in ["latest updates", "milestone", "risk", "planned"])):
+            collect_support = False
+            
+        if collect_support:
+            for pat in bullet_patterns:
+                m = re.match(pat, cleaned)
+                if m:
+                    support.append(m.group(1).strip())
+                    break
+            else:
+                if len(cleaned) > 15:
+                    support.append(cleaned)
+    if not support:
+        support = [
+            "Dealer Mobile App testing completion",
+            "MNP process to be deployed in production environment",
+            "AWS Infra security configuration and port validation"
+        ]
+
+    milestones = [
+        {"Activity": "Kick-off meeting", "ETA": "Mar-24", "Rev": "", "UpdatedPlan": "", "Status": "Completed", "Comments": ""},
+        {"Activity": "BSS Demo workshop", "ETA": "Mar-24", "Rev": "", "UpdatedPlan": "", "Status": "Completed", "Comments": ""},
+        {"Activity": "Input data from Liv.ing", "ETA": "May-24", "Rev": "", "UpdatedPlan": "", "Status": "Completed", "Comments": ""},
+        {"Activity": "SOW preparation & Sign off", "ETA": "Jul-24", "Rev": "", "UpdatedPlan": "", "Status": "Completed", "Comments": ""},
+        {"Activity": "AWS Infra Deployment (Testing)", "ETA": "Jul-24", "Rev": "", "UpdatedPlan": "", "Status": "Completed", "Comments": ""},
+        {"Activity": "AWS Production re-deployment", "ETA": "Oct-24", "Rev": "Dec-25", "UpdatedPlan": "May-25", "Status": "On Track", "Comments": ""},
+        {"Activity": "Core integration", "ETA": "Oct-24", "Rev": "Jan-25", "UpdatedPlan": "Oct-25", "Status": "On Track", "Comments": ""},
+        {"Activity": "E2E API - Integrations", "ETA": "Oct-24", "Rev": "Jan-25", "UpdatedPlan": "Oct-25", "Status": "On Track", "Comments": ""},
+        {"Activity": "Integration and Testing", "ETA": "Oct-24", "Rev": "Jan-25", "UpdatedPlan": "Dec-25", "Status": "At Risk", "Comments": ""},
+        {"Activity": "UAT", "ETA": "Oct-24", "Rev": "Jan-25", "UpdatedPlan": "Dec-25", "Status": "At Risk", "Comments": ""},
+        {"Activity": "Go-live", "ETA": "Oct-24", "Rev": "Jan-25", "UpdatedPlan": "Dec-25", "Status": "At Risk", "Comments": ""},
+        {"Activity": "Training and Handover", "ETA": "Oct-24", "Rev": "Jan-25", "UpdatedPlan": "Dec-25", "Status": "At Risk", "Comments": ""},
+    ]
+
+    for row in milestones:
+        act_escaped = re.escape(row["Activity"])
+        match = re.search(act_escaped + r'\s*\|\s*([A-Za-z0-9\-]+)', text, re.IGNORECASE)
+        if match:
+            row["ETA"] = match.group(1).strip()
+
     # Formulate parsed scope fields
     scope_fields = {
         "Pre-sales Document": filename,
         "Scope Prepare": "Extracted from " + filename,
         "Project Time Plan": "Drafted based on " + filename,
-        "Project Status": f"Pre-sales phase initiated. Detected {len(found_components)} project modules."
+        "Project Status": f"Pre-sales phase initiated. Detected {len(found_components)} project modules.",
+        "Project Manager": pm_name,
+        "Latest Updates": "\n".join(updates),
+        "Risks Dependencies": "\n".join(risks),
+        "Support Required": "\n".join(support),
+        "Milestones": json.dumps(milestones)
     }
 
     return scope_fields, found_components
@@ -1010,6 +1129,80 @@ class PMORequestHandler(BaseHTTPRequestHandler):
                 import traceback
                 traceback.print_exc()
                 self.send_error_response(500, f"Error resetting approvals: {str(e)}")
+            return
+
+        elif path == "/api/ppt/generate":
+            try:
+                content_length = int(self.headers['Content-Length'])
+                post_data = self.rfile.read(content_length)
+                payload = json.loads(post_data.decode('utf-8'))
+                
+                template_file = "Liv_ing_Template.pptx"
+                output_file = "Liv_ing_Project_Weekly_Review.pptx"
+                
+                if not os.path.exists(template_file):
+                    self.send_error_response(404, f"PowerPoint template {template_file} not found.")
+                    return
+                
+                # Import python-pptx and fill template
+                from pptx import Presentation
+                prs = Presentation(template_file)
+                
+                # Slide 1: Review Date
+                slide1 = prs.slides[0]
+                for shape in slide1.shapes:
+                    if shape.name == "TextBox 14":
+                        shape.text_frame.text = payload.get("reviewDate", "")
+                
+                # Slide 2: Weekly Review Data
+                slide2 = prs.slides[1]
+                for shape in slide2.shapes:
+                    if shape.name == "Rectangle: Rounded Corners 3":
+                        shape.text_frame.text = payload.get("projectManager", "")
+                    elif shape.name == "Rectangle: Rounded Corners 21":
+                        shape.text_frame.text = payload.get("latestUpdates", "")
+                    elif shape.name == "Rectangle: Rounded Corners 12":
+                        shape.text_frame.text = payload.get("risks", "")
+                    elif shape.name == "Table 23":
+                        table = shape.table
+                        milestones = payload.get("milestones", [])
+                        for idx, row_data in enumerate(milestones):
+                            r_idx = idx + 2
+                            if r_idx < len(table.rows):
+                                table.cell(r_idx, 0).text = row_data.get("Activity", "")
+                                table.cell(r_idx, 1).text = row_data.get("ETA", "")
+                                table.cell(r_idx, 2).text = row_data.get("Rev", "")
+                                table.cell(r_idx, 3).text = row_data.get("UpdatedPlan", "")
+                                table.cell(r_idx, 4).text = row_data.get("Status", "")
+                                table.cell(r_idx, 5).text = row_data.get("Comments", "")
+                
+                # Slide 3: Support Required
+                slide3 = prs.slides[2]
+                for shape in slide3.shapes:
+                    if shape.name == "Content Placeholder 2":
+                        shape.text_frame.text = payload.get("supportRequired", "")
+                
+                prs.save(output_file)
+                
+                # Read file bytes
+                with open(output_file, "rb") as f:
+                    file_bytes = f.read()
+                
+                self.send_response(200)
+                self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.presentationml.presentation")
+                self.send_header("Content-Disposition", "attachment; filename=Liv_ing_Project_Weekly_Review.pptx")
+                self.send_header("Content-Length", str(len(file_bytes)))
+                self.end_headers()
+                self.wfile.write(file_bytes)
+                
+                # Clean up local output file
+                if os.path.exists(output_file):
+                    os.remove(output_file)
+                
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                self.send_error_response(500, f"Error generating PowerPoint: {str(e)}")
             return
 
         self.send_error_response(404, "Endpoint not found.")
