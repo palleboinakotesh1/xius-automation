@@ -2546,7 +2546,7 @@ function switchScopeTab(tabName) {
     }
 
     // Toggle footer buttons
-    const tabs = ['presales', 'agreed', 'customer', 'milestones', 'internal', 'risk'];
+    const tabs = ['presales', 'customer', 'milestones', 'internal'];
     const idx = tabs.indexOf(tabName);
 
     const prevBtn = document.getElementById("btn-scope-prev");
@@ -2734,7 +2734,7 @@ function setupScopeUploadListeners() {
 
     if (prevBtn) {
         prevBtn.addEventListener("click", () => {
-            const tabs = ['presales', 'agreed', 'customer', 'milestones', 'internal', 'risk'];
+            const tabs = ['presales', 'customer', 'milestones', 'internal'];
             const idx = tabs.indexOf(state.activeScopeTab);
             if (idx > 0) {
                 switchScopeTab(tabs[idx - 1]);
@@ -2744,7 +2744,7 @@ function setupScopeUploadListeners() {
 
     if (nextBtn) {
         nextBtn.addEventListener("click", () => {
-            const tabs = ['presales', 'agreed', 'customer', 'milestones', 'internal', 'risk'];
+            const tabs = ['presales', 'customer', 'milestones', 'internal'];
             const idx = tabs.indexOf(state.activeScopeTab);
             if (idx < tabs.length - 1) {
                 switchScopeTab(tabs[idx + 1]);
