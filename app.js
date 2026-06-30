@@ -2723,6 +2723,16 @@ function loadProjectScopeIntoForm(projName) {
     }
     renderPPTMilestonesTable(milestones);
 
+    // Show/hide Delete Pre-sales Doc button depending on if a document exists
+    const delDocBtn = document.getElementById("btn-delete-presales-doc");
+    if (delDocBtn) {
+        if (scope["Pre-sales Document"]) {
+            delDocBtn.style.display = "inline-flex";
+        } else {
+            delDocBtn.style.display = "none";
+        }
+    }
+
     // Load components tags
     const compStr = scope["Components"] || "";
     state.extractedComponents = compStr ? compStr.split(",").map(c => c.trim()).filter(Boolean) : [];
@@ -2936,6 +2946,44 @@ function setupScopeUploadListeners() {
             }
         });
     }
+
+    // Delete Pre-sales Document Data handler
+    const deletePresalesBtn = document.getElementById("btn-delete-presales-doc");
+    if (deletePresalesBtn) {
+        deletePresalesBtn.addEventListener("click", () => {
+            const confirmClear = confirm("Are you sure you want to clear the uploaded pre-sales document details and components list? This cannot be undone.");
+            if (!confirmClear) return;
+            
+            document.getElementById("scope-input-presales-doc").value = "";
+            document.getElementById("scope-input-presales-scope").value = "";
+            document.getElementById("scope-input-presales-time").value = "";
+            
+            state.extractedComponents = [];
+            renderScopeComponents();
+            
+            deletePresalesBtn.style.display = "none";
+            showToast("Pre-sales document data cleared. Click 'Save Scope Changes' below to persist.", "info");
+        });
+    }
+
+    // Clear Presentation Weekly Review Data handler
+    const clearPptBtn = document.getElementById("btn-clear-ppt-data");
+    if (clearPptBtn) {
+        clearPptBtn.addEventListener("click", () => {
+            const confirmClear = confirm("Are you sure you want to clear all PowerPoint slide updates, risks, and milestones? This cannot be undone.");
+            if (!confirmClear) return;
+            
+            document.getElementById("scope-input-ppt-manager").value = "";
+            document.getElementById("scope-input-ppt-updates").value = "";
+            document.getElementById("scope-input-ppt-risks").value = "";
+            document.getElementById("scope-input-ppt-support").value = "";
+            
+            // Clear Milestones table
+            renderPPTMilestonesTable([]);
+            
+            showToast("Weekly Review presentation data cleared. Click 'Save Scope Changes' below to persist.", "info");
+        });
+    }
 }
 
 function uploadDocument(file, docType) {
@@ -3022,6 +3070,10 @@ async function executeUploadRequest(file, projName, docType) {
                     console.error("Error parsing parsed milestones", err);
                 }
                 renderPPTMilestonesTable(milestones);
+
+                // Show Delete button
+                const delDocBtn = document.getElementById("btn-delete-presales-doc");
+                if (delDocBtn) delDocBtn.style.display = "inline-flex";
 
                 // Populate components list
                 state.extractedComponents = res.components || [];
